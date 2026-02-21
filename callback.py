@@ -1,0 +1,23 @@
+import urwid
+
+def callback(controller, data):
+    data_parts = data.split(':')
+
+    match data_parts[0]:
+        case 'scr':
+            controller.switch_screen(data_parts[1])
+
+        case 'act':
+            match data_parts[1]:
+                case 'quit':
+                    raise urwid.ExitMainLoop() #TODO: confirmation
+                
+                case 'deploy':
+                    controller.popup_hide()
+                    controller.switch_screen("deploy_progress")
+
+        case 'var':
+            pass
+
+        case _:
+            pass # Do nothing

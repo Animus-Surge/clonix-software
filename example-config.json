@@ -1,0 +1,12 @@
+{
+  "title_text": "CloNIX",
+  "footer_text": "",
+  "image_store": {
+    "server": "localhost",
+    "path": "/images"
+  },
+  "packages_store": {
+    "server": "localhost",
+    "path": "/"
+  }
+}
