@@ -40,11 +40,11 @@
         };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil ] )) ];
+          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil pyparted nuitka ] )) ];
 
           shellHook = ''
             echo "Entered clonix-bin development shell."
-            echo "Available packages: urwid, psutil"
+            echo "Available packages: urwid, psutil, pyparted, nuitka"
             '';
         };
 

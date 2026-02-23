@@ -14,7 +14,7 @@ def callback(controller, data):
                 
                 case 'deploy':
                     controller.popup_hide()
-                    controller.switch_screen("deploy_progress")
+                    controller.switch_screen("deploy-prog")
 
         case 'var':
             pass

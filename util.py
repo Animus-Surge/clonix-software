@@ -25,6 +25,10 @@ MASTER_PALETTE = [
         ('edit-regular', 'black', 'light gray', 'default'),
         ('edit-disabled', 'black', 'dark gray', 'strikethrough'),
 
+        # Progress bar
+        ('prog-normal', 'white', 'black', 'default'),
+        ('prog-fill', 'black', 'light cyan', 'default'),
+
         # Popups
         ('popup-error', 'light red', 'black', 'bold', '#f00', '#333'),
         ('popup-warning', 'yellow', 'black', 'bold', '#ff0', '#333'),
@@ -117,10 +121,11 @@ def get_tty():
 def get_config(key: str):
     return config.get(key, '')
 
-def load_config():
+def load_config(path="./config.json"):
     global config
+    if path is None: path = './config.json'
     try:
-        with open("./config.json", "r") as f:
+        with open(path, "r") as f:
             config = config | json.load(f)
     except:
         pass # Ignore

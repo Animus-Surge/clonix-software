@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import signal
 
@@ -8,10 +9,15 @@ import urwid
 import callback
 import util
 
-from screens import menu, deploy
+from screens import menu, deploy, deploy_progress
 from widgets import frames
 
-VERSION = "v0.1.5"
+VERSION = "v0.2.0"
+
+parser = argparse.ArgumentParser(
+        prog='CloNIX',
+        description='NixOS/Filesystem based OS cloner')
+parser.add_argument('-c', '--config')
 
 def render_footer(last_keypress: str = ''):
     extra_text = util.get_config('footer_text')
@@ -30,7 +36,10 @@ class TUIController:
                 if self.popup_open:
                     self.popup_callback(None, "popup::hide")
                 else:
-                    raise urwid.ExitMainLoop()
+                    if self.screen == 'main':
+                        raise urwid.ExitMainLoop() # TODO: confirmation
+                    else:
+                        self.switch_screen('main')
             case _:
                 pass
 
@@ -43,10 +52,12 @@ class TUIController:
 
         # other members
         self.vars = {}
+        self.screen = '';
 
         self.screens = {}
         self.screens['main'] = menu.MainMenu(self)
         self.screens['deploy'] = deploy.DeployScreen(self)
+        self.screens['deploy-prog'] = deploy_progress.DeployProgressScreen(self)
 
         self.footer = render_footer()
         self.frame = urwid.Frame(urwid.Text("Lalala"), footer=self.footer)
@@ -97,6 +108,7 @@ class TUIController:
             self.popup(f"No screen named {screen_name}", urwid.Text(f"There's no such screen named {screen_name}!"), attribute='popup-error')
             return
 
+        self.screen = screen_name
         self.frame.body = screen.render()
 
     def set_variable(self, name:str, value=None):
@@ -113,7 +125,8 @@ def signal_handler(sig, frame):
     pass
 
 def init():
-    util.load_config()
+    args = vars(parser.parse_args())
+    util.load_config(args.get('config'))
     signal.signal(signal.SIGINT, signal_handler)
 
     TUIController().run()
