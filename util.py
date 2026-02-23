@@ -119,9 +119,11 @@ def get_config(key: str):
 
 def load_config():
     global config
-    with open("./config.json", "r") as f:
-        config = config | json.load(f)
-    pass
+    try:
+        with open("./config.json", "r") as f:
+            config = config | json.load(f)
+    except:
+        pass # Ignore
 
 # Devices and stuff
 def get_disks():
@@ -152,10 +154,11 @@ def calculate_partition_table(disk, partitions):
     allocated = sum(p[1] for p in partitions if p[1] != -1)
 
     for num, size, fstype, mount in partitions:
+        actual = 0
         if size == -1:
             actual = max(0, total_capacity - allocated)
         else:
-            actual_size = size
+            actual = size
 
         size_str = f"{actual:.2}G"
         output.append(f"- {num} {fstype} {size_str} {mount}")
