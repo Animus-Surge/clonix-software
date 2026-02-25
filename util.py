@@ -8,6 +8,8 @@ import json
 import os
 import subprocess
 
+from loguru import logger
+
 MASTER_PALETTE = [
         ('text-title', 'white', 'black', 'bold'),
         ('text-normal', 'light gray', 'black', 'default'),
@@ -106,16 +108,16 @@ LINE_CAP_THICK_RIGHT = '\u2578'
 LINE_CAP_THICK_TOP = '\u257b'
 LINE_CAP_THICK_BOTTOM = '\u2579'
 
-# Icons
-# Not implemented.
 
 config = {
     "title_text": "Linux Deployment System"
 }
 
+
 # TTY?
 def get_tty():
     return os.ttyname(1).split('/')[-1]
+
 
 # Configuration handling
 def get_config(key: str):
@@ -128,7 +130,48 @@ def load_config(path="./config.json"):
         with open(path, "r") as f:
             config = config | json.load(f)
     except:
-        pass # Ignore
+        #logger.error(f"Failed to load config from {path}")
+        pass
+
+
+# Temp
+MOCK_DATA = {
+    # display: Text to show in the UI; dlpath: The full path (minus server and port) to the file; tool: Which tool to use to handle the package (tar for tarballs, apt-get for 
+    #   .deb packages); outdir; The output directory (specifically for tar and unzip) where the package will go
+    "available_packages": [
+        { "display": "Vivado 2022.3", "dlpath": "/packages/extra/vivado-2022.tar.zst", "tool": "tar", "outdir": "/opt" },
+    ],
+    "filesystems": ["ext4", "btrfs"],
+    "images": [
+        { "display": "Ubuntu 24.04 Desktop", "dlpath": "/images/ubuntu24.04-base.tar.zst", "default": True },
+        { "display": "Ubuntu 22.04 Desktop", "dlpath": "/images/ubuntu22.04-base.tar.zst" }
+    ],
+    "options": [
+        { "display": "Enable puppet", "action": { "cmdlist": [ "systemctl --root=/target enable puppet" ] }, "default": True }
+    ]
+}
+
+
+# Data handling (TODO: requests)
+def get_data(key):
+    return MOCK_DATA.get(key)
+
+def load_data_from_remote():
+    server = get_config("server")
+    if server:
+        pass # TODO: a backend for this?
+    else:
+        #logger.warning("No server defined, cannot load remote data.")
+        pass
+
+def load_data_from_file(path):
+    try:
+        with open(path, 'r') as f:
+            pass
+    except:
+        #logger.error(f"Failed to load data from {path}")
+        pass
+
 
 # Devices and stuff
 def get_disks():
@@ -170,5 +213,9 @@ def calculate_partition_table(disk, partitions):
 
     return output
 
-if __name__=="__main__":
-    print(get_disks())
+
+# Logging
+def init_logger():
+    logger.remove() # Remove handlers
+
+

@@ -32,7 +32,13 @@ class DeployScreen:
         disks[0] = (disks[0], self.flag_encrypt)
         self.disk_toggles = inputs.Togglegroup(disks)
 
-        self.version_toggles = inputs.Togglegroup(["22.04 Desktop", "22.04 Server", ("24.04 Desktop", True), "24.04 Server"]) 
+        os_list = []
+        for os in util.get_data("images"):
+            if os.get("default"):
+                os_list.append((os.get("display"), os.get("default")))
+            else:
+                os_list.append(os.get("display"))
+        self.version_toggles = inputs.Togglegroup(os_list) 
         self.hostname_field = urwid.AttrMap(urwid.Edit(wrap='clip'), 'edit-regular', 'edit-highlight')
 
         # TPM fields
@@ -68,7 +74,7 @@ class DeployScreen:
 
             urwid.Divider(),
 
-            urwid.Text("Ubuntu Version"),
+            urwid.Text("Operating System"),
             urwid.Divider(util.LINE_SINGLE_HORIZONTAL),
             self.version_toggles,
             
@@ -83,23 +89,28 @@ class DeployScreen:
         left_col = urwid.Pile(left_col_contents)
 
         # Middle column: extra features
-        # TODO: populate with a request.
-        self.packages_checkboxes = inputs.Togglegroup(
-                ['Vivado', 'COMSOL 6.0', 'Matlab r2025a', 'Matlab r2025b', 'Ansys'],
-                True)
+        packages_list = []
+        for package in util.get_data("available_packages"):
+            if package.get("default"):
+                packages_list.append((package.get("display"), package.get("default")))
+            else:
+                packages_list.append(package.get("display"))
+        self.packages_checkboxes = inputs.Togglegroup(packages_list, True)
 
+        # TODO: filesystems
         self.root_partition_fstypes = inputs.Togglegroup([('ext4', True), 'btrfs'])
 
         self.extra_packages_edit = urwid.Edit()
         self.extra_packages_widget = urwid.AttrMap(self.extra_packages_edit, 'edit-regular', 'edit-highlight')
 
-        self.extra_features = inputs.Togglegroup([
-            ("Run puppet on boot", True),
-            "Install nvidia driver",
-            "Some other option",
-            "Some other option 2",
-            "Some other option 3"
-        ], True)
+        extra_options_list = []
+        for option in util.get_data("options"):
+            if option.get("default"):
+                extra_options_list.append((option.get("display"), option.get("default")))
+            else:
+                extra_options_list.append(option.get("display"))
+
+        self.extra_features = inputs.Togglegroup(extra_options_list, True)
 
         mid_col_contents = [
             urwid.Text("Extra Packages"),
@@ -190,6 +201,7 @@ class DeployScreen:
         self.controller.set_variable("do_encrypt", self.flag_encrypt)
         self.controller.set_variable("install_pkgs", self.packages_checkboxes.get_selected())
         self.controller.set_variable("root_fstype", self.root_partition_fstypes.get_selected())
+        self.controller.set_variable("extra_options", self.extra_features.get_selected())
 
         popup_pile = urwid.Pile(popup_contents)
         self.controller.popup("Confirm begin?", popup_pile, action=['popup:Begin:deploy', 'popup:Cancel:hide'], attribute='popup-warning')
@@ -206,7 +218,7 @@ class DeployScreen:
     def update_alerts(self):
 
         if self.flag_encrypt:
-            if len(self.tpm_text) > 10:
+            if len(self.tpm_text) < 10:
                 self.tpm_alert_field.set_text("Must be longer than 10 characters")
                 self.ready = False
                 return

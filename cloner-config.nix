@@ -20,7 +20,7 @@
   };
 
   # Other services
-  services.kmscon.enable = true; # Allow full color tty
+  services.kmscon.enable = true; # Allow full color and UTF-8 support
   services.kmscon.fonts = [
     { name = "Hack Nerd Font"; package = pkgs.nerd-fonts.hack; }
   ];
@@ -29,6 +29,11 @@
     palette=legacy
     font-name=Hack Nerd Font
   '';
+
+  services.ntp = {
+    enable = true;
+    servers = [ "" ]; # Can be configured somehow else, maybe with the flake? Should be able to be configured by the end user
+  };
 
   environment.systemPackages = with pkgs; [
     # System requirements

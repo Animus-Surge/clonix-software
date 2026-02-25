@@ -2,7 +2,7 @@
   description = "egr-cloner tui implementation";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
   };
 
@@ -17,7 +17,7 @@
           src = ./.;
 
           nativeBuildInputs = [
-            (pkgs.python313.withPackages (ps: with ps; [ urwid psutil nuitka ]))
+            (pkgs.python313.withPackages (ps: with ps; [ urwid psutil httpx loguru nuitka ]))
             pkgs.ccache
           ];
 
@@ -40,11 +40,11 @@
         };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil pyparted nuitka ] )) ];
+          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil pyparted httpx loguru nuitka ] )) ];
 
           shellHook = ''
             echo "Entered clonix-bin development shell."
-            echo "Available packages: urwid, psutil, pyparted, nuitka"
+            echo "Available packages: urwid, psutil, pyparted, httpx, loguru, nuitka"
             '';
         };
 

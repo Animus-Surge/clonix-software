@@ -4,11 +4,14 @@ import util
 import widgets.frames as frames
 import widgets.inputs as inputs
 
+def determine_state_list():
+    pass
+
 class DeployProgressScreen:
     def __init__(self, controller):
         self.controller = controller
 
-        lcol_contents = [urwid.Text("PHASE 1: Drive formatting")]
+        lcol_contents = []
         lcol_pile = urwid.Pile(lcol_contents)
         lcol = frames.RoundedLineBox(lcol_pile, "Progress")
 
