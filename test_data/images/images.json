@@ -1,0 +1,20 @@
+[
+  {
+    "display": "Ubuntu 24.04 Desktop",
+    "file": "/images/24.04-desktop-base.tar.zst",
+    "default": true
+  },
+  {
+    "display": "Ubuntu 22.04 Desktop",
+    "file": "/images/22.04-desktop-base.tar.zst"
+  },
+  {
+    "display": "Ubuntu 24.04 Server",
+    "file": "/images/24.04-server-base.tar.zst"
+  },
+  {
+    "display": "W447 Lab Base",
+    "file": "/images/24.04-w447-base.tar.zst"
+  }
+]
+

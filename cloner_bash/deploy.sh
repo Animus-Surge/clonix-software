@@ -229,13 +229,10 @@ if $dry_run; then
     echo " - mkfs.ext4 $target${partition_prefix}2"
     echo " - cryptsetup luksFormat -q \"$target${partition_prefix}3\""
     echo " - cryptsetup luksOpen \"$target${partition_prefix}3 dm_crypt-0"
-    echo " - pvcreate /dev/mapper/dm_crypt-0"
-    echo " - vgcreate ubuntu-vg /dev/mapper/dm_crypt-0"
-    echo " - lvcreate -n ubuntu-lv -l 100%FREE ubuntu-vg"
     if $use_btrfs; then
-      echo " - mkfs.btrfs /dev/mapper/ubuntu--vg-ubuntu--lv"
+      echo " - mkfs.btrfs /dev/mapper/dm_crypt-0"
     else
-      echo " - mkfs.ext4 /dev/mapper/ubuntu--vg-ubuntu--lv"
+      echo " - mkfs.ext4 /dev/mapper/dm_crypt-0"
     fi
     echo "- Mount: mount $target${partition_prefix}3 /target"
   else
@@ -386,9 +383,9 @@ if $use_luks; then
   lvcreate -n "ubuntu-lv" -l 100%FREE "ubuntu-vg" >> $output_log
 
   if $use_btrfs; then
-    yes | mkfs.btrfs "/dev/mapper/ubuntu--vg-ubuntu--lv" >> $output_log
+    yes | mkfs.btrfs "/dev/mapper/dm_crypt-0" >> $output_log
   else
-    yes | mkfs.ext4 "/dev/mapper/ubuntu--vg-ubuntu--lv" >> $output_log
+    yes | mkfs.ext4 "/dev/mapper/dm_crypt-0" >> $output_log
   fi
 
   echo "SUCCESS: Created EFI partition at $target${partition_prefix}1" >> $output_log
@@ -423,7 +420,7 @@ chroot="/target"
 
 # Mount root
 if $use_luks; then
-  mount "/dev/mapper/ubuntu--vg-ubuntu--lv" "$chroot"
+  mount "/dev/mapper/dm_crypt-0" "$chroot"
 else
   mount "$target${partition_prefix}2" "$chroot"
 fi
@@ -472,7 +469,7 @@ efi_uuid=$(blkid -s UUID -o value $target${partition_prefix}1)
 echo "/dev/disk/by-uuid/$efi_uuid /boot/efi vfat defaults 0 0" > $chroot/etc/fstab
 
 if $use_luks; then
-  root_id=$(ls /dev/disk/by-id/dm-uuid-LVM*)
+  root_id=$(ls /dev/disk/by-id/dm-uuid-CRYPT-LUKS2*)
   boot_uuid=$(blkid -s UUID -o value $target${partition_prefix}2)
   root_uuid_crypttab="UUID=$(cryptsetup luksUUID "$target${partition_prefix}3")"
   

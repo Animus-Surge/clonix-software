@@ -1,3 +1,9 @@
+## CloNIX flake.nix
+# Author: Evan Floyd (Surge)
+# Version: v1.2
+#
+# Defines nixos based generations for development shell and live iso environment
+
 {
   description = "egr-cloner tui implementation";
 
@@ -11,13 +17,14 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       let 
         pkgs = import nixpkgs { inherit system; };
 
+        # Generated binary file
         clonix-bin = pkgs.stdenv.mkDerivation {
           pname = "clonix-bin";
           version = "0.2.0";
           src = ./.;
 
           nativeBuildInputs = [
-            (pkgs.python313.withPackages (ps: with ps; [ urwid psutil httpx loguru nuitka ]))
+            (pkgs.python313.withPackages (ps: with ps; [ urwid psutil httpx nuitka ]))
             pkgs.ccache
           ];
 
@@ -40,11 +47,11 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
         };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil pyparted httpx loguru nuitka ] )) ];
+          buildInputs = [ (pkgs.python313.withPackages (ps: with ps; [ urwid psutil pyparted httpx nuitka ] )) ];
 
           shellHook = ''
             echo "Entered clonix-bin development shell."
-            echo "Available packages: urwid, psutil, pyparted, httpx, loguru, nuitka"
+            echo "Available packages: urwid, psutil, pyparted, httpx, nuitka"
             '';
         };
 
@@ -55,6 +62,7 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       }
     ))
     // {
+      # Following block creates the live ISO
       nixosConfigurations.cloner = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
@@ -63,6 +71,8 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
           })
 
           ./cloner-config.nix
+
+          # TODO: write binary and config file to the iso
 
           {
             isoImage.makeEfiBootable = true;

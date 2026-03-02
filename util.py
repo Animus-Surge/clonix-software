@@ -8,9 +8,11 @@ import json
 import os
 import subprocess
 
-from loguru import logger
+# Constants
+VERSION = "v0.2.1"
+MASTER_PALETTE = [  # urwid palette
 
-MASTER_PALETTE = [
+        # Text
         ('text-title', 'white', 'black', 'bold'),
         ('text-normal', 'light gray', 'black', 'default'),
         ('text-error', 'light red', 'black', 'bold'),
@@ -27,7 +29,7 @@ MASTER_PALETTE = [
         ('edit-regular', 'black', 'light gray', 'default'),
         ('edit-disabled', 'black', 'dark gray', 'strikethrough'),
 
-        # Progress bar
+        # Progress bar ; TODO: fix
         ('prog-normal', 'white', 'black', 'default'),
         ('prog-fill', 'black', 'light cyan', 'default'),
 
@@ -108,6 +110,11 @@ LINE_CAP_THICK_RIGHT = '\u2578'
 LINE_CAP_THICK_TOP = '\u257b'
 LINE_CAP_THICK_BOTTOM = '\u2579'
 
+ICON_FILE = '\uea7b'
+ICON_DIRECTORY = '\uea83'
+ICON_RUN = '\ueb9e'
+ICON_WARNING = '\uea6c'
+ICON_ERROR = '\uea87'
 
 config = {
     "title_text": "Linux Deployment System"
@@ -130,7 +137,6 @@ def load_config(path="./config.json"):
         with open(path, "r") as f:
             config = config | json.load(f)
     except:
-        #logger.error(f"Failed to load config from {path}")
         pass
 
 
@@ -161,7 +167,6 @@ def load_data_from_remote():
     if server:
         pass # TODO: a backend for this?
     else:
-        #logger.warning("No server defined, cannot load remote data.")
         pass
 
 def load_data_from_file(path):
@@ -169,7 +174,6 @@ def load_data_from_file(path):
         with open(path, 'r') as f:
             pass
     except:
-        #logger.error(f"Failed to load data from {path}")
         pass
 
 
@@ -214,8 +218,20 @@ def calculate_partition_table(disk, partitions):
     return output
 
 
-# Logging
-def init_logger():
-    logger.remove() # Remove handlers
+# File operations
 
+def write_file(file, contents, append=True):
+    f = None
+    if append:
+        f = open(file, 'a')
+    else:
+        f = open(file, 'w')
+
+    f.write(contents)
+
+    f.flush()
+    f.close()
+
+def chmod_x(file, exe=True):
+    pass
 

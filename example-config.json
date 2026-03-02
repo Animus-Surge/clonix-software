@@ -2,5 +2,9 @@
   "title_text": "CloNIX",
   "footer_text": "",
   "server": "localhost",
-  "ntp_server": "localhost"
+  "ntp_server": "localhost",
+
+  "debug": {
+    "use_test_data": "true"
+  }
 }

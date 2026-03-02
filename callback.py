@@ -1,3 +1,8 @@
+## CloNIX callback.py
+# System callbacks
+
+import tui
+
 import urwid
 
 def callback(controller, data):

@@ -51,6 +51,7 @@ class DeployScreen:
         self.tpm_psk_field = urwid.AttrMap(self.tpm_psk_edit, 'edit-regular', 'edit-highlight')
         self.tpm_psk_field_confirm = urwid.AttrMap(self.tpm_psk_confirm_edit, 'edit-regular', 'edit-highlight')
 
+        # Connect TPM field signals
         urwid.connect_signal(self.tpm_psk_edit, 'change', self.luks_pk_change_callback)
         urwid.connect_signal(self.tpm_psk_confirm_edit, 'change', self.luks_pk_conf_change_callback)
 
@@ -100,9 +101,6 @@ class DeployScreen:
         # TODO: filesystems
         self.root_partition_fstypes = inputs.Togglegroup([('ext4', True), 'btrfs'])
 
-        self.extra_packages_edit = urwid.Edit()
-        self.extra_packages_widget = urwid.AttrMap(self.extra_packages_edit, 'edit-regular', 'edit-highlight')
-
         extra_options_list = []
         for option in util.get_data("options"):
             if option.get("default"):
@@ -112,14 +110,12 @@ class DeployScreen:
 
         self.extra_features = inputs.Togglegroup(extra_options_list, True)
 
+        # Create column objects
         mid_col_contents = [
             urwid.Text("Extra Packages"),
             urwid.Divider(util.LINE_SINGLE_HORIZONTAL),
             self.packages_checkboxes,
 
-            urwid.Text("Comma separated list of other packages"),
-            self.extra_packages_widget,
-            
             urwid.Divider(),
             
             urwid.Text("Root partition filesystem"),
@@ -151,11 +147,11 @@ class DeployScreen:
         ]
         right_col = urwid.Pile(right_col_contents)
 
+        # Layout and frame
         layout = urwid.Columns([left_col, mid_col, right_col], dividechars=1)
-
         box = frames.DoubleLineBox(layout, title_text)
 
-        self.root = box
+        self.root = box # Set root component returned by `render()`
 
     def render(self):
         return self.root

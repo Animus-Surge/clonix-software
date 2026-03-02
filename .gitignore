@@ -1,9 +1,18 @@
+# Python cache
 __pycache__/
+
+# Build results
+main.dist/
+main.build/
 result
 
+# Virtual environments
 .venv/
 
+# Common files
 *.log
 *.tar*
 *.zip
 *.lock
+
+

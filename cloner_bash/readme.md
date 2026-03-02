@@ -23,11 +23,3 @@ Linux deployment tools
 - `config/`: Contains production and example configurations for extra packages (wip)
 - `device/`: Configuration files for the live ssd systems
 
-## Work-in-progress features
-
-[-] TUI based interface
-[-] Extra packages
-[ ] Image pulls for easier access to source tarballs 
-[ ] PXE based deployment setups
-[ ] NixOS based live boot version 
-
