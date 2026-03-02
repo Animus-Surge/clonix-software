@@ -217,6 +217,16 @@ def calculate_partition_table(disk, partitions):
 
     return output
 
+# Returns the current TPM version
+def get_tpm_version():
+    if os.path.exists("/dev/tpm0"):
+        if os.path.exists("/dev/tpmrm0"):
+            return "2.0"
+        else:
+            return "1.2"
+    else:
+        return None
+
 
 # File operations
 
