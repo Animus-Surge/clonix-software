@@ -1,0 +1,4 @@
+urwid
+psutil
+httpx
+nuitka

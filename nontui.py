@@ -86,6 +86,7 @@ def run():
                 else:
                     m_use_btrfs_compress_alg = btrfs_alg
 
+    # Summary of what is to be done
     print( "")
     print( "=== SUMMARY ===")
     print(f"Source file: {m_source}")
@@ -110,8 +111,21 @@ def run():
         exit(1)
         return
 
-    print("INFO: Starting deployment.")
-    subprocess.run(["./scripts/format_boot_encrypted.sh"], shell=True)
+    print("NOTE: Asking for LUKS passphrase.")
+    pwa = input("> ")
+    pwb = "obfuscated"
 
+    while pwa != pwb:
+        pwb = input("> ")
+    pwb = "obfuscated"
+
+    print("INFO: Starting deployment.")
+    subprocess.run(["./scripts/format_boot_encrypted.sh", m_target, pwa], shell=True)  # Step 1: format the target drive
+    pwa = "obfuscated"
+
+    # TODO: determine if target is a URI or a local file
+    subprocess.run(["./scripts/clone_from_local.sh", m_source], shell=True) # Step 2: clone the image
+
+    
 
 

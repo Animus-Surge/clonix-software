@@ -50,10 +50,6 @@
 
     # Compression and stream tools
     gnutar pv zstd
-
-    # Required for TUI
-    python313
-    python313Packages.urwid
   ];
 
   fileSystems."/nix/.rw-store" = {
