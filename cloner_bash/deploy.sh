@@ -12,7 +12,7 @@ fi
 # TODO: Extra install options (i.e. get this tarball and extract it here, make these
 #       desktop entries, add this config, etc); might be handled by parent script (python)
 
-skip_bootmgr=true
+skip_bootmgr=false
 
 output_log=/dev/stdout
 source_file=
