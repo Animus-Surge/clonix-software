@@ -8,7 +8,7 @@
   description = "egr-cloner tui implementation";
 
   inputs = {
-nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
   };
 
@@ -17,7 +17,7 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       let 
         pkgs = import nixpkgs { inherit system; };
 
-        pythonDeps = [ "urwid" "psutil" "httpx" "nuitka" ];
+        pythonDeps = [ "urwid" "psutil" "httpx" "nuitka" "qrcode" ];
         pythonEnv = pkgs.python313.withPackages (ps: map (name: ps.${name}) pythonDeps);
 
         # Generated binary file
@@ -44,9 +44,19 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
         # Requirements file generator, to allow for development on other machines
         genRequirements = pkgs.writeShellScriptBin "gen-requirements" ''
-          echo "I: Generating requirements.txt..."
-          echo "${nixpkgs.lib.concatStringsSep "\n" pythonDeps}" > requirements.txt
-          echo "I: Done."
+          CURRENT_DEPS="${nixpkgs.lib.concatStringsSep "\n" pythonDeps}"
+
+          if [ ! -f requirements.txt ]; then
+            echo "I: Generating requirements.txt..."
+            echo "$CURRENT_DEPS" > requirements.txt
+            echo "I: Done."
+          else
+            if ! echo "$CURRENT_DEPS" | cmp -s - requirements.txt; then
+              echo "I: Generating requirements.txt..."
+              echo "$CURRENT_DEPS" > requirements.txt
+              echo "I: Done."
+            fi
+          fi
         '';
       in
       {
@@ -61,8 +71,8 @@ nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
           shellHook = ''
             echo "Entered clonix-bin development shell."
-            echo "Available packages: urwid, psutil, pyparted, httpx, nuitka"
             ${genRequirements}/bin/gen-requirements
+            echo "Available packages: ${nixpkgs.lib.concatStringsSep ", " pythonDeps}"
             '';
         };
 

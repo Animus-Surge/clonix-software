@@ -11,10 +11,18 @@ def gen_fstab_encrypted(device:str, is_btrfs=False, subvols=[]):
         device (str): The physical device to use (e.g. /dev/sda)
         is_btrfs (bool): Whether to specify this drive's **root** partition to be btrfs
         subvols (list): btrfs subvolumes to put on fstab
+
+    Returns:
+        0 if succeeded.
+        1 if errored. Error message is always printed.
     """
     
     # Gather uuids
     part_uuids = get_part_uuids(device)
+
+    if len(part_uuids) == 0:
+        print("E: Failed to get partition information.")
+        return 1
     
     print("I: Gathered partition UUIDS:")
     ind=1
@@ -52,6 +60,8 @@ def gen_fstab_encrypted(device:str, is_btrfs=False, subvols=[]):
             f.write("\n")
 
     print("I: Done.")
+
+    return 0
 
 def gen_fstab(device, is_btrfs=False, subvols=[]):
     """Generate target's fstab, with encrypted options. Supports btrfs subvolumes.

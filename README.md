@@ -68,4 +68,8 @@ python3 -m nuitka --onefile ./main.py
 
 This is the same command that gets run inside the build hook.
 
+## ISOs
+
+Creating an ISO requires the use of the Nix package system, as the tool is built into the package
+manager.
 
