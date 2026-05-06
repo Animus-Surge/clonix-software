@@ -7,6 +7,8 @@ Configures target TPM
 import os
 import subprocess
 
+import util
+
 # transgender party mode
 def configure_tpm(target, pw, pcrs=[7]):
     print("I: Configuring TPM...")
@@ -14,17 +16,12 @@ def configure_tpm(target, pw, pcrs=[7]):
     tpmver=None
 
     # 1. Determine TPM version
-    if os.path_exists("/dev/tpm0"):
-        if os.path_exists("/dev/tpmrm0"):
-            print("I: Detected TPM 2.0 device.")
-            tpmver=2
-        else:
-            print("I: Detected TPM 1.2 device.")
-            tpmver=1.2
 
     if tpmver == None:
         print("E: No TPM detected. Will not configure.")
         return 1
+
+    # 2. Configure tpm
     elif tpmver == 2:
         pcr_block = ','.join(pcrs) if len(pcrs) > 0 else ''
         tpm_proc = [f"PASSWORD={pw}", "systemd-cryptenroll", target, "--tpm2-device=auto", f'--tpm2-pcrs={pcr_block}']
@@ -51,6 +48,14 @@ def configure_tpm(target, pw, pcrs=[7]):
     else:
         print("?: How did we get here...")
         return 1
+
+    # 3. Write /target/etc/crypttab
+    # Get target UUID:
+    try:
+        subprocess.run(
+    with open("/target/etc/crypttab", 'w') as f:
+        if tpmver == 2:
+            f.write()
 
     print("I: Done.")
     return 0

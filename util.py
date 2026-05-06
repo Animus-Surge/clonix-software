@@ -5,11 +5,12 @@ Utility functions
 """
 
 import json
+import math
 import os
 import subprocess
 
 # Constants
-VERSION = "v0.2.1"
+VERSION = "v0.3.0"
 MASTER_PALETTE = [  # urwid palette
 
         # Text
@@ -43,6 +44,13 @@ MASTER_PALETTE = [  # urwid palette
         #('button-danger'),
 ]
 
+
+# NVIDIA driver specific options
+# idea is to scan the GPU in the system, and if it's a particular GPU we install a particular version,
+# otherwise install 580
+NVIDIA_DRIVER_DEFAULT_VERSION = 580
+
+# Characters
 
 # Check boxes
 CHK_UNCHECKED = '\u25a1'
@@ -116,14 +124,11 @@ ICON_RUN = '\ueb9e'
 ICON_WARNING = '\uea6c'
 ICON_ERROR = '\uea87'
 
+# Default configuration
+
 config = {
     "title_text": "Linux Deployment System"
 }
-
-
-# TTY?
-def get_tty():
-    return os.ttyname(1).split('/')[-1]
 
 
 # Configuration handling
@@ -140,27 +145,9 @@ def load_config(path="./config.json"):
         pass
 
 
-# Temp
-MOCK_DATA = {
-    # display: Text to show in the UI; dlpath: The full path (minus server and port) to the file; tool: Which tool to use to handle the package (tar for tarballs, apt-get for 
-    #   .deb packages); outdir; The output directory (specifically for tar and unzip) where the package will go
-    "available_packages": [
-        { "display": "Vivado 2022.3", "dlpath": "/packages/extra/vivado-2022.tar.zst", "tool": "tar", "outdir": "/opt" },
-    ],
-    "filesystems": ["ext4", "btrfs"],
-    "images": [
-        { "display": "Ubuntu 24.04 Desktop", "dlpath": "/images/ubuntu24.04-base.tar.zst", "default": True },
-        { "display": "Ubuntu 22.04 Desktop", "dlpath": "/images/ubuntu22.04-base.tar.zst" }
-    ],
-    "options": [
-        { "display": "Enable puppet", "action": { "cmdlist": [ "systemctl --root=/target enable puppet" ] }, "default": True }
-    ]
-}
-
-
 # Data handling (TODO: requests)
 def get_data(key):
-    return MOCK_DATA.get(key)
+    pass
 
 def load_data_from_remote():
     server = get_config("server")
@@ -177,7 +164,22 @@ def load_data_from_file(path):
         pass
 
 
+# Pretty printing and stuff
+def bytes_to_human_readable(byte_in):
+    if byte_in == 0: return "0B"
+
+    units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+
+    i = int(math.floor(math.log(byte_in, 1000)))
+
+    p = math.pow(1000, i)
+    s = round(byte_in/p, 2)
+
+    return f"{s}{units[i]}"
+
+
 # Devices and stuff
+
 def get_disks():
     cmd = ['lsblk', '-d', '-J', '-o', 'NAME,SIZE,MODEL']
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -189,33 +191,16 @@ def get_disks():
 
     return disks
 
-def get_disk_capacity(disk):
-    device = disk.split('/')[-1]
-    path = f"/sys/block/{device}/size"
-
-    if not os.path.exists(path): raise FileNotFoundError("Failed to determine block size for {device}")
-
-    with open(path, 'r') as f:
-        total_bytes = int(f.read().strip()) * 512
-        return total_bytes / (1024**3)
-
-def calculate_partition_table(disk, partitions):
-    total_capacity = get_disk_capacity(disk)
-    output = []
-
-    allocated = sum(p[1] for p in partitions if p[1] != -1)
-
-    for num, size, fstype, mount in partitions:
-        actual = 0
-        if size == -1:
-            actual = max(0, total_capacity - allocated)
-        else:
-            actual = size
-
-        size_str = f"{actual:.2}G"
-        output.append(f"- {num} {fstype} {size_str} {mount}")
-
-    return output
+# Get a partition's UUID, given the device path (e.g. /dev/sda1 -> 12345678-9abc-def0-12345678)
+def get_part_uuid(path):
+    try:
+        result = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', path], stderr=subprocess.STDOUT, check=True)
+        return result.strip()
+    except subprocess.CalledProcessError:
+        return None
+    except FileNotFoundError:
+        print("E: 'blkid' command not found.") # TODO: override print function to allow it to work with or without TUI mode
+        return None
 
 # Returns the current TPM version
 def get_tpm_version():
@@ -228,20 +213,39 @@ def get_tpm_version():
         return None
 
 
-# File operations
+# PCI bus operations
 
-def write_file(file, contents, append=True):
-    f = None
-    if append:
-        f = open(file, 'a')
-    else:
-        f = open(file, 'w')
+NVIDIA_PCIE_VENDOR_ID = '10de'
 
-    f.write(contents)
+# Determine if and what nvidia gpu is installed
+def determine_nvidia_version():
+    # Blackwell gpus: 10de:2(cde)xx
+    pattern = re.compile(r'10de:(2c|2d|2e)[0-9a-f]{2}', re.IGNORECASE)
 
-    f.flush()
-    f.close()
+    try:
+        lspci_output = subprocess.check_output(['lspci', '-nn'], text=True)
+        gpu_found = False
+        is_blackwell = False
 
-def chmod_x(file, exe=True):
-    pass
+        for line in lspci_output.splitlines():
+            if NVIDIA_PCIE_VENDOR_ID in line.lower() and "VGA" in line:
+                gpu_found = True
+
+                if pattern.search(line):
+                    is_blackwell = True # All done
+                    break
+
+        if not gpu_found: return None
+
+        if is_blackwell:
+            return 590
+        else:
+            return 580
+
+    except FileNotFoundError:
+        print("E: 'lspci' command not found.")
+    except Exception as e:
+        print("E: Error occured: {e}")
+
+    return None # No GPU
 

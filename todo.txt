@@ -1,0 +1,12 @@
+## TODO BOARD
+
+
+- Rewrite TUI modules
+- Complete CLI modules
+- Server/API hosting? (Where would that even be hosted...?)
+- Image something something capability
+- PXE? Warewulf? (Warewulf might be better... if we can figure out how to set it up
+  with the existing PXE system. Otherwise might be worth looking into a provisioning
+  station with a dedicated rack server or desktop computer to act as the warewulf 
+  server to be the provisioning setup. Something to look into for the future.)
+- Better puppet/openvox integration
