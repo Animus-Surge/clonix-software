@@ -1,77 +1,148 @@
-from __future__ import annotations
+"""
+Clonix - NixOS Python based operating system deployment program
+
+Author: Evan Floyd (Surge)
+"""
 
 import argparse
 import os
-import signal
+import subprocess
+import sys
 
-from urwid import ExitMainLoop
+from loguru import logger
+import httpx
 
-import nontui
-import tui
-import util
+import deploy
+#import freeze
 
-"""
-TODO BOARD
+# TODO: other subcommands? i.e. "modify"?
 
-- Logging
-- Bash script creation for steps
-"""
-
-is_tui = False
-
-# Argument setup
+# Argparse configuration
 parser = argparse.ArgumentParser(
-        prog='CloNIX',
-        description='NixOS/Filesystem based OS cloner')
+        prog="clonix",
+        description="NixOS/Python based OS cloner")
 
-parser.add_argument('-C', '--config', help='Use this specific config file') # Load specific config file
+subparsers = parser.add_subparsers(dest="command", required=True)
 
-# Following options are here parallel for the existing bash script
-parser.add_argument('-f', '--source', help='Define the source file; will prompt if omitted')
-parser.add_argument('-t', '--target', help='Define the target disk; will prompt if omitted')
+deployment_parser = subparsers.add_parser("deploy")
+freeze_parser = subparsers.add_parser("freeze")
 
-parser.add_argument('-b', '--btrfs', help='Whether to use btrfs instead of ext4', action='store_true')
-parser.add_argument('-c', '--compress', help='Used with btrfs; defines the compression method (default zstd)')
-parser.add_argument('-d', '--dual-boot', help='Whether or not the system is dual booted', action='store_true')
-# Omitting dry-run option
-parser.add_argument('-l', '--luks', help='Use LUKS[2] encryption (default true)', action='store_true')
-parser.add_argument('-L', '--log-file', help='Log file to output to') # TODO: implement logging
-parser.add_argument('-m', '--tpm', help='Use the TPM for encryption (enables LUKS) (default true)', action='store_true')
-parser.add_argument('-n', '--hostname', help='Defines the hostname of the target system (default invalid)')
-# Omitting package, property, conf-file
+# Positional arguments
 
-parser.add_argument('-T', '--no-tui', help='Disables the TUI', action='store_true') # Disables TUI 
+# Deployment arguments
+deployment_parser.add_argument('source_file')
+deployment_parser.add_argument('target')
 
+# Freezing arguments
+freeze_parser.add_argument('target_file')
 
-def signal_handler(sig, frame):
-    if sig == signal.SIGINT: # Stop ctrl+c raising KeyboardInterrupt
-        if is_tui:
-            raise ExitMainLoop()
+# Flags
+parser.add_argument('-D', '--dry-run', action="store_true")
+
+# Deployment flags
+deployment_parser.add_argument('-b', '--use-btrfs', action="store_true")
+deployment_parser.add_argument('-d', '--dual-boot', action="store_true")
+deployment_parser.add_argument('-l', '--use-luks', action="store_true")
+deployment_parser.add_argument('-m', '--use-tpm', action="store_true")
+
+# Freezing flags
+
+# Options
+parser.add_argument('-L', '--log-file')
+parser.add_argument('-R', '--conf-file')
+
+# Deployment options
+deployment_parser.add_argument('-n', '--hostname')
+deployment_parser.add_argument('-p', '--package', action="append")
+deployment_parser.add_argument('-s', '--subvolume', action="append")
+
+# Freezing options
+freeze_parser.add_argument('-s', '--source-dir')
+
+# Update checker
+def check_update():
+
+    last_etag = None
+    update_check_cache_file=os.path.join(os.curdir, 'update_check_last_timestamp')
+    if os.path.exists(update_check_cache_file):
+        with open(update_check_cache_file, 'r') as f:
+            last_etag = f.read().strip()
+
+    headers = {}
+    if last_etag:
+        headers["If-None-Match"] = last_etag
+
+    try:
+        with httpx.Client(follow_redirects = True) as client:
+            response = client.head('https://github.com/Animus-Surge/clonix/commits/prod.atom', headers=headers)
+
+            if response.status_code == 304:
+                return False
+    except httpx.HTTPError as e:
+        logger.error("Failed to check update: {}".format(e))
+    finally:
+        return False
+
+def main(arg_dict: dict):
+    # TODO: allow conf-file to override certain values in constants.py; for example:
+    #       if we have a provisioning system setup such that when a new device is
+    #       enrolled into the system it gets enrolled and added to a database, we can
+    #       specify that url. It would default to None for portability, but allow
+    #       admins to control the behavior of this system.
+
+    # Subcommand processing
+    if arg_dict.get("command"):
+        cmd = arg_dict.get("command")
+
+        cmdopts = {}
+
+        if cmd == "deploy":
+            source = arg_dict.get("source_file")
+            target = arg_dict.get("target")
+
+            if not source or not target:
+                logger.error("Source or target not given.")
+                exit(1)
+
+            # Assemble cmdopts
+
+            if not deploy.start_deployment(source, target, cmdopts):
+                # I'm choosing not to print anything here, since the actual system will
+                # say something.
+                exit(1)
+            exit(0)
+
+        elif cmd == "freeze":
+            # TODO: IMPLEMENT
+            pass
+
         else:
-            print("NOTE: Abort.")
-            exit(1) 
+            logger.error("Unknown command {}".format(cmd))
 
-# Main stuff below here
-def init():
-    args = vars(parser.parse_args())
-    util.load_config(args.get('config'))
-    signal.signal(signal.SIGINT, signal_handler)
-
-    if args.get('no_tui'):
-        nontui.set_options(
-            args.get('source'),
-            args.get('target'),
-            args.get('hostname')
-            )
-        try:
-            nontui.run()
-        except EOFError:
-            print("NOTE: Abort.")
-            exit(1)
     else:
-        tui.TUIController().run()
+        logger.error("Something went wrong.")
+        exit(1)
 
-if __name__=="__main__":
-    print("Loading...") # If this gets printed, THE PROGRAM WORKS
-    init()
 
+if __name__ == "__main__":
+
+    # DO THIS FIRST: update checks
+    logger.info("Checking for updates...")
+    if check_update():
+        # Why os.execv? This process changes for updates to take place. update.sh will
+        # never change. Passes sys.argv to update.sh, so update.sh can restart this after
+        # updating.
+        os.execv(os.path.join(os.curdir, 'update.sh'), sys.argv)
+
+    # Checking user ID for elevation
+    if os.geteuid() != 0:
+        logger.info("Requires root to run.")
+        proc = subprocess.run(['sudo', sys.executable] + sys.argv)
+        sys.exit(proc.returncode)
+
+
+    args = vars(parser.parse_args())
+
+
+    main(args)
+    

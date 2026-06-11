@@ -17,7 +17,7 @@
       let 
         pkgs = import nixpkgs { inherit system; };
 
-        pythonDeps = [ "urwid" "psutil" "httpx" "nuitka" "qrcode" ];
+        pythonDeps = [ "urwid" "psutil" "httpx" "nuitka" "qrcode" "fusepy" "pytest" ];
         pythonEnv = pkgs.python313.withPackages (ps: map (name: ps.${name}) pythonDeps);
 
         # Generated binary file
