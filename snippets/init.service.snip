@@ -1,0 +1,13 @@
+[Unit]
+Description=Initial System Setup
+DefaultDependencies=no
+Before=display-manager.service
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/init.sh
+TimeoutSec=0
+
+[Install]
+WantedBy=multi-user.target

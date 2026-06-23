@@ -4,6 +4,7 @@ Clonix: util/constants.py
 Flag definitions and systemwide constants; some overridden by config.json
 """
 
+import os
 
 # System constants
 # TODO:
@@ -32,3 +33,14 @@ PART_FLAGS = {
         'palo': 0x10000
 }
 
+# First run constants
+CLONER_DIR=os.path.join(os.getenv("HOME", ""), "cloner")
+TARGET_ROOT="/target"
+TARGET_SBIN=os.path.join(TARGET_ROOT, "/usr/local/sbin")
+TARGET_SYSTEMD=os.path.join(TARGET_ROOT, "/etc/systemd/system")
+
+TARGET_INIT_SCRIPT=os.path.join(TARGET_SBIN, "init.sh")
+TARGET_INIT_SERVICE=os.path.join(TARGET_SYSTEMD, "init.service")
+
+DRIVER_MARKER="# <DRIVER: insert>"
+PACKAGE_MARKER="# <PACKAGE: insert>"

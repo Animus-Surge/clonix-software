@@ -1,0 +1,87 @@
+#!/bin/bash
+
+plymouth display-message --text="Initializing..."
+sleep 1
+
+# Should allow puppet to work. Sleep 2 guarantees it has time to start and setup
+systemctl start systemd-timesyncd
+sleep 2
+
+# Stage 1: puppet and MOK
+
+# MOK
+echo "I: init: Resetting MOK database..."
+plymouth display-message --text="Generating machine owner key..."
+
+mokutil --generate-hash="<replaceme>" --hash-file=/tmp/mokhash
+mokutil --reset --hash-file=/tmp/mokhash
+
+echo "I: init: Generating new MOK..."
+shred -u /var/lib/shim-signed/mok/MOK.der
+update-secureboot-policy --new-key
+
+echo "I: init: Enrolling new MOK..."
+mokutil --import=/var/lib/shim-signed/mok/MOK.der --hash-file=/tmp/mokhash
+
+if [[ $? -eq 0 ]]; then
+  echo "S: init: Enrolled new MOK. Password is required on reboot."
+  plymouth display-message --text="MOK regenerated and enrolled. Password required on reboot."
+  touch /opt/require_reboot
+  sleep 5
+else
+  echo "E: init: Failed to enroll MOK. See journal for details."
+fi 
+  
+# Create bookmark file
+touch /opt/mok_stage_bookmark
+  
+sleep 1
+
+# Puppet
+plymouth display-message --text="Starting puppet agent..."
+/opt/puppetlabs/bin/puppet agent --test
+
+if [[ $? -ne 0 ]]; then
+  # If failed, we stop AND enable puppet so it runs next boot anyway.
+  systemctl stop puppet
+  systemctl enable puppet
+fi
+
+sleep 1
+
+# Stage 2: install drivers and extra packages
+plymouth display-message --text="Installing drivers..."
+
+# BEGIN: Populated by create_first_run.sh
+
+# <DRIVER: insert>
+
+plymouth display-message --text="Installing packages..."
+
+# lua-posix reinstall ; Fixes lmod issues
+apt-get reinstall -y lua-posix
+
+# <PACKAGE: insert>
+
+# END: populated by create_first_run.sh
+
+# Stage 3: Grub
+plymouth display-message --text="Updating GRUB..."
+
+grub-mkconfig -o /boot/efi/EFI/ubuntu/grub.cfg
+
+# All done. Check reboot flag and clean up
+systemctl disable init.service
+
+rm /usr/local/sbin/init.sh
+rm /etc/systemd/system/init.service
+
+if [[ -e /opt/require_reboot ]]; then
+  rm -f /opt/require_reboot
+  plymouth display-message --text="Initialization complete. Requiring reboot..."
+  sleep 4
+  reboot
+else
+  plymouth display-message --text="Initialization complete. Waiting for display manager..."
+fi
+
