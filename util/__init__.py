@@ -6,11 +6,11 @@ Utility functions
 
 
 import os
+import re
 import subprocess
 import time
 
 from loguru import logger
-import psutil
 
 import constants
 
@@ -77,7 +77,6 @@ def check_dir_empty(directory):
             return True
     return True # Ignore it; or error, idk
 
-# FIXME: missing passphrase integration.
 def cryptsetup_unlock(device, psp):
     if not os.path.exists(device):
         logger.error("Cannot unlock {}: no such device.".format(device))
@@ -113,9 +112,7 @@ def mount_binds(target):
         try:
             subprocess.run(mount_cmd, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to mount {}".format(dir))
-            for line in e.stderr.strip().split('\n'):
-                logger.trace(line)
+            log_error(e, f"Failed to mount {dir}.")
             return False
     return True
 
@@ -141,9 +138,7 @@ def mount_device(device, mountpoint, mkdir=True, opts=None):
     try:
         subprocess.run(mount_cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to mount {}".format(device))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to mount {device}.")
         return False
     return True
 
@@ -152,9 +147,7 @@ def unmount_path(path, recursive=False):
         try:
             subprocess.run(['umount', "--recursive" if recursive else "", path], check=True)
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to unmount {}".format(path))
-            for line in e.stderr.strip().split('\n'):
-                logger.trace(line)
+            log_error(e, f"Failed to unmount {path}.")
             return False
         return True
 
@@ -167,7 +160,7 @@ def get_physical_drives():
     disks = []
 
     if not os.path.exists('/sys/block'):
-        logger.fatal("This system must be run on *nix systems (Linux, MacOS, etc).")
+        logger.critical("This system must be run on *nix systems (Linux, MacOS, etc).")
         exit(1)
 
     for dev in os.listdir('/sys/block'):
@@ -200,7 +193,7 @@ def get_physical_drives():
 
     return disks
 
-## BEGIN: partition manager
+## BEGIN: Partition and filesystem manager
 
 partition_index = 1
 partitions = []
@@ -214,9 +207,7 @@ def reformat_drive_uefi(drive):
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to reformat {} as gpt.".format(drive))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to reformat {drive} as GPT.")
         return False
     partition_index = 1
     return True
@@ -240,9 +231,7 @@ def make_partition(drive: str, fstype: str, start: str, end: str, flags=0):
     try:
         subprocess.run(cmd_partition, input=constants.YES, check=True, text=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to create partition {} as {} on {}.".format(partition_index, fstype, drive))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to create partition {partition_index} as {fstype} on {drive}.")
         return -1
 
     # Flags step
@@ -258,10 +247,8 @@ def make_partition(drive: str, fstype: str, start: str, end: str, flags=0):
                     subprocess.run(flag_cmd, check=True, text=True, capture_output=True)
                     flags_enabled.append(flag[0])
                 except subprocess.CalledProcessError as e:
-                    logger.error("Failed to run flag {} ({}) on index {}.".format(flag[0], flag[1], partition_index))
-                    for line in e.stderr.strip().split('\n'):
-                        logger.trace(line)
-                        return -1
+                    log_error(e, f"Failed to run flag {flag[0]} ({flag[1]}) on index {partition_index}.")
+                    return -1
 
     logger.info("Created partition {} as {}. Enabled flags: {}".format(partition_index, fstype, ','.join(flags_enabled)))
 
@@ -284,9 +271,7 @@ def format_crypt(partition: int, psp: str, cryptname: str):
         subprocess.run(cmd2, input=psp, check=True, capture_output=True, text=True)
         time.sleep(2)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to format {} as crypt.".format(partition))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to format {partition} as crypt.")
         return False
     return True
 
@@ -295,9 +280,7 @@ def format_ext4(partition: int):
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to format {} as ext4.".format(partition))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to format {partition} as ext4.")
         return False
     return True
 
@@ -306,9 +289,7 @@ def format_btrfs(partition: int):
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to format {} as btrfs.".format(partition))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to format {partition} as btrfs.")
         return False
     return True
 
@@ -317,9 +298,68 @@ def format_vfat(partition: int):
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to format {} as vfat.".format(partition))
-        for line in e.stderr.strip().split('\n'):
-            logger.trace(line)
+        log_error(e, f"Failed to format {partition} as vfat.")
         return False
     return True
+
+def btrfs_defragment(target_path: str):
+    logger.info(f"Defragmenting {target_path}...")
+    try:
+        subprocess.run(["btrfs", "filesystem", "defragment", "-rczstd", target_path], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        log_error(e, f"Failed to defragment {target_path}.")
+        return False
+    return True
+
+# BEGIN: Boot order management
+def clear_boot_order(keep_windows=False):
+    logger.info("Clearing UEFI boot order...")
+    if keep_windows: logger.info("Keeping Windows entries")
+    try:
+        result = subprocess.run(["efibootmgr"], capture_output=True, text=True, check=True)
+        output = result.stdout
+
+    except subprocess.CalledProcessError as e:
+        log_error(e, "Failed to gather EFI boot order information.")
+        return False
+
+    boot_pattern = re.compile(r"^Boot([0-9A-Fa-f]{4})\*?\s+(.*)$")
+
+    for line in output.splitlines():
+        match = boot_pattern.match(line)
+
+        if match:
+            entry = match.group(1)
+            label = match.group(2)
+
+            if label in "Windows Boot Manager" and keep_windows:
+                logger.info(f"Keeping {entry}: Windows")
+                continue
+
+            if label in ("UEFI", "ONBOARD"):
+                logger.info(f"Keeping {entry}: UEFI or Onboard")
+                continue
+
+            logger.info(f"Removing {entry}")
+            remove_boot_entry(entry)
+
+    pass
+
+def remove_boot_entry(entry: str):
+    try:
+        subprocess.run(["efibootmgr", "-b", entry, "-B"], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        log_error(e, f"Failed to remove {entry} from UEFI boot order.")
+        return False
+    return True
+
+def add_boot_entry(target: str, label: str, path: str):
+    logger.info(f"Creating boot entry for {target}: {label} - {path}")
+    try:
+        subprocess.run(["efibootmgr", "-c", "-d", target, "-p", "1", "-L", label, "-l", path], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        log_error(e, f"Failed to create boot entry for {target}.")
+        return False
+    return True
+
 

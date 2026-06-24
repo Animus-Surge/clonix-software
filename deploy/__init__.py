@@ -16,15 +16,21 @@ from deploy.partition import *
 from deploy.setups import *
 from loguru import logger
 
-def start_deployment(source, target, opts: dict = {}, psp = None):
+def start_deployment(source, target, opts: dict = {}, psp: str | None = None):
+    # Initial checks
     if not os.path.exists(source) or not os.path.exists(target):
-        logger.fatal("Given source or target does not exist.")
+        logger.critical("Given source or target does not exist.")
+        return False
+    
+    if not psp and opts.get('luks', False):
+        logger.critical("Encrypted systems must include a passphrase.")
         return False
 
     """
     opts (Flags default True, subvols default []):
 
     {
+      'hostname': <str>,
       'btrfs': <bool>,
       'btrfs_defaults': <bool>,
       'btrfs_subvols': <list>,
@@ -58,7 +64,7 @@ def start_deployment(source, target, opts: dict = {}, psp = None):
 
     # Partition
     if not mk_parts([target], 0, psp):
-        logger.fatal("Failed to format target.")
+        logger.critical("Failed to format target.")
         return False
 
     # Mount
@@ -67,7 +73,6 @@ def start_deployment(source, target, opts: dict = {}, psp = None):
     root_id = util.get_part_uuid(device=f"/dev/mapper/dm_crypt-0", by_id=True)
 
     if not util.mount_device("/dev/mapper/dm_crypt-0", "/target"): return False
-
     
     # Copy
     logger.info("Copying source to /target...")
@@ -111,7 +116,24 @@ def start_deployment(source, target, opts: dict = {}, psp = None):
     # Setup
     if not setup_image(): return False
     if not setup_grub(): return False
-    if not setup_crypt(target, psp): return False
+    if psp:
+        if not setup_crypt(target, psp): return False
+
+    try:
+        entries = os.listdir("/target/lib/modules")
+        dirs = sorted([e for e in entries if os.path.isdir(os.path.join("/target/lib/modules", e))])
+        kver = dirs[0] if dirs else ""
+    except FileNotFoundError:
+        return False
+
+    with open("/target/etc/hostname", 'w') as f:
+        f.write(opts.get("hostname", ""))
+
+    try:
+        subprocess.run(["chroot", "/target", "/bin/bash", "dracut", "-f", "--kver" if kver else "", kver if kver else ""], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        util.log_error(e, "Failed to generate final initrd.")
+        return False
 
     # TODO: init.sh
 
