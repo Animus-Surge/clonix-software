@@ -6,6 +6,8 @@ main.dist/
 main.build/
 result
 
+logs/
+
 # Virtual environments
 .venv/
 

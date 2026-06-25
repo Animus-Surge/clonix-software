@@ -7,19 +7,36 @@ Utility functions
 
 import os
 import re
+import shlex
 import subprocess
 import time
 
+import httpx
 from loguru import logger
 
 import constants
 
 def log_error(error: subprocess.CalledProcessError, message: str):
-    logger.error(message)
+    logger.error(f"{message} ({error.returncode})")
     for line in error.stderr().strip().split('\n'):
         logger.trace(line)
 
-def get_part_uuid(mountpoint=None, device=None, by_id=False):
+def run_chroot_process(cmd: list | str, root="/target", prepend=[], user_input=""):
+    final_cmd = prepend
+    for x in ["chroot", root, "/bin/bash"]: final_cmd.append(x)
+    for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
+
+    logger.debug(f"Running: `{' '.join(final_cmd)}`")
+    
+    try:
+        subprocess.run(final_cmd, check=True, capture_output=True, text=True, input=user_input)
+    except subprocess.CalledProcessError as e:
+        log_error(e, f"Command failure: `{' '.join(final_cmd)}`")
+        return False
+    return True
+
+
+def get_part_uuid(mountpoint=None, device=None, by_id=False) -> str | None:
     if mountpoint:
         mountpoint = os.path.abspath(mountpoint)
         device_path = None
@@ -69,7 +86,7 @@ def get_part_uuid(mountpoint=None, device=None, by_id=False):
         return None
         
 
-def check_dir_empty(directory):
+def check_dir_empty(directory) -> bool:
     if os.path.isdir(directory):
         with os.scandir(directory) as entries:
             for _ in entries:
@@ -77,7 +94,7 @@ def check_dir_empty(directory):
             return True
     return True # Ignore it; or error, idk
 
-def cryptsetup_unlock(device, psp):
+def cryptsetup_unlock(device, psp) -> bool:
     if not os.path.exists(device):
         logger.error("Cannot unlock {}: no such device.".format(device))
         return False
@@ -106,7 +123,7 @@ def cryptsetup_unlock(device, psp):
 
     return True
 
-def mount_binds(target):
+def mount_binds(target) -> bool:
     for dir in ["dev", "proc", "run", "sys"]:
         mount_cmd = ["mount", "--bind", f"/{dir}", os.path.join(target, dir)]
         try:
@@ -116,7 +133,7 @@ def mount_binds(target):
             return False
     return True
 
-def mount_device(device, mountpoint, mkdir=True, opts=None):
+def mount_device(device, mountpoint, mkdir=True, opts=None) -> bool:
     if "=" not in device or not os.path.exists(device): # Should allow LABEL=root or UUID=<...> to work in place of device
         logger.error("Cannot mount {}: no such device.".format(device))
         return False
@@ -142,7 +159,7 @@ def mount_device(device, mountpoint, mkdir=True, opts=None):
         return False
     return True
 
-def unmount_path(path, recursive=False):
+def unmount_path(path, recursive=False) -> bool:
     if os.path.ismount(path):
         try:
             subprocess.run(['umount', "--recursive" if recursive else "", path], check=True)
@@ -156,12 +173,12 @@ def unmount_path(path, recursive=False):
 
 ## BEGIN: hardware management
 
-def get_physical_drives():
+def get_physical_drives() -> list:
     disks = []
 
     if not os.path.exists('/sys/block'):
         logger.critical("This system must be run on *nix systems (Linux, MacOS, etc).")
-        exit(1)
+        return []
 
     for dev in os.listdir('/sys/block'):
         # Determine if the device is a physical drive
@@ -199,7 +216,7 @@ partition_index = 1
 partitions = []
 
 # Drive/partition manager; also handles encrypted partition setup
-def reformat_drive_uefi(drive):
+def reformat_drive_uefi(drive) -> bool:
     # parted {drive} -- mklabel gpt
     # partition_index = 1
     global partition_index
@@ -213,7 +230,7 @@ def reformat_drive_uefi(drive):
     return True
 
 
-def make_partition(drive: str, fstype: str, start: str, end: str, flags=0):
+def make_partition(drive: str, fstype: str, start: str, end: str, flags=0) -> int:
     global partition_index
     # parted {drive} -- mkpart primary {fstype} {start} {end}
     # for each flag:
@@ -258,13 +275,13 @@ def make_partition(drive: str, fstype: str, start: str, end: str, flags=0):
     return index
     
 # TODO: support more format options; i.e. ntfs, fat[8,16,32], etc.
-def format_crypt(partition: int, psp: str, cryptname: str):
+def format_crypt(partition: int, psp: str, cryptname: str) -> bool:
     """
     Format and open a LUKS volume
     """
 
-    cmd = ['cryptsetup', 'luksFormat', '-q', partitions[partition-1]]
-    cmd2 = ['cryptsetup', 'luksOpen', partitions[partition-1], cryptname] # Adding cryptname here should allow for easy testing on existing encrypted systems
+    cmd = ['cryptsetup', 'luksFormat', '-q', partitions[partition-1], '-']
+    cmd2 = ['cryptsetup', 'luksOpen', partitions[partition-1], cryptname, '-'] # Adding cryptname here should allow for easy testing on existing encrypted systems
     try:
         subprocess.run(cmd, input=psp, check=True, capture_output=True, text=True)
         time.sleep(2)
@@ -273,9 +290,10 @@ def format_crypt(partition: int, psp: str, cryptname: str):
     except subprocess.CalledProcessError as e:
         log_error(e, f"Failed to format {partition} as crypt.")
         return False
+    partitions.append(f"/dev/mapper/{cryptname}") # Add this so other formatters can format the encrypted partition
     return True
 
-def format_ext4(partition: int):
+def format_ext4(partition: int) -> bool:
     cmd = ['mkfs.ext4', partitions[partition-1]]
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
@@ -284,7 +302,7 @@ def format_ext4(partition: int):
         return False
     return True
 
-def format_btrfs(partition: int):
+def format_btrfs(partition: int) -> bool:
     cmd = ['mkfs.btrfs', '-f', partitions[partition-1]]
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
@@ -293,7 +311,7 @@ def format_btrfs(partition: int):
         return False
     return True
 
-def format_vfat(partition: int):
+def format_vfat(partition: int) -> bool:
     cmd = ['mkfs.vfat', '-F', '32', partitions[partition-1]]
     try:
         subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
@@ -302,7 +320,7 @@ def format_vfat(partition: int):
         return False
     return True
 
-def btrfs_defragment(target_path: str):
+def btrfs_defragment(target_path: str) -> bool:
     logger.info(f"Defragmenting {target_path}...")
     try:
         subprocess.run(["btrfs", "filesystem", "defragment", "-rczstd", target_path], check=True, capture_output=True, text=True)
@@ -312,7 +330,7 @@ def btrfs_defragment(target_path: str):
     return True
 
 # BEGIN: Boot order management
-def clear_boot_order(keep_windows=False):
+def clear_boot_order(keep_windows=False) -> bool:
     logger.info("Clearing UEFI boot order...")
     if keep_windows: logger.info("Keeping Windows entries")
     try:
@@ -341,11 +359,12 @@ def clear_boot_order(keep_windows=False):
                 continue
 
             logger.info(f"Removing {entry}")
-            remove_boot_entry(entry)
+            if not remove_boot_entry(entry): return False
 
-    pass
+    logger.info("Cleared boot order.")
+    return True
 
-def remove_boot_entry(entry: str):
+def remove_boot_entry(entry: str) -> bool:
     try:
         subprocess.run(["efibootmgr", "-b", entry, "-B"], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
@@ -353,7 +372,7 @@ def remove_boot_entry(entry: str):
         return False
     return True
 
-def add_boot_entry(target: str, label: str, path: str):
+def add_boot_entry(target: str, label: str, path: str) -> bool:
     logger.info(f"Creating boot entry for {target}: {label} - {path}")
     try:
         subprocess.run(["efibootmgr", "-c", "-d", target, "-p", "1", "-L", label, "-l", path], check=True, capture_output=True, text=True)
@@ -361,5 +380,15 @@ def add_boot_entry(target: str, label: str, path: str):
         log_error(e, f"Failed to create boot entry for {target}.")
         return False
     return True
+
+# BEGIN: server communications
+
+def get_image_metadata(image_name: str) -> dict:
+    r = httpx.get(constants.CLONIX_API_URL, params={"image": image_name})
+
+    if r.status_code == 200:
+        return {"type": "response", "data": r.json()}
+    else:
+        return {"type": "error", "reason": "Status code.", "status_code": r.status_code}
 
 

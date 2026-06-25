@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 
+from datetime import now
+
 from loguru import logger
 import httpx
 
@@ -26,6 +28,7 @@ subparsers = parser.add_subparsers(dest="command", required=True)
 
 deployment_parser = subparsers.add_parser("deploy")
 freeze_parser = subparsers.add_parser("freeze")
+tui_parser = subparsers.add_parser("tui")
 
 # Positional arguments
 
@@ -40,21 +43,23 @@ freeze_parser.add_argument('target_file')
 parser.add_argument('-D', '--dry-run', action="store_true")
 
 # Deployment flags
-deployment_parser.add_argument('-b', '--use-btrfs', action="store_true")
-deployment_parser.add_argument('-d', '--dual-boot', action="store_true")
-deployment_parser.add_argument('-l', '--use-luks', action="store_true")
-deployment_parser.add_argument('-m', '--use-tpm', action="store_true")
+deployment_parser.add_argument('-b', '--use-btrfs', action="store_true", help="Use btrfs instead of ext4")
+deployment_parser.add_argument('-d', '--dual-boot', action="store_true", help="If the system is dual booted (i.e. for windows)")
+deployment_parser.add_argument('-l', '--use-luks', action="store_true", help="Encrypt the root partition")
+deployment_parser.add_argument('-m', '--use-tpm', action="store_true", help="Use the TPM as a LUKS key")
 
 # Freezing flags
 
+# Tui flags
+
 # Options
-parser.add_argument('-L', '--log-file')
+# parser.add_argument('-L', '--log-file') # Removed in favor of default logs in clonix_root/logs
 parser.add_argument('-R', '--conf-file')
 
 # Deployment options
 deployment_parser.add_argument('-n', '--hostname')
 deployment_parser.add_argument('-p', '--package', action="append")
-deployment_parser.add_argument('-s', '--subvolume', action="append")
+deployment_parser.add_argument('-s', '--subvolume', action="append", help="Format: volname;path;<opts>, where opts appends to mount options.")
 
 # Freezing options
 freeze_parser.add_argument('-s', '--source-dir')
@@ -84,7 +89,7 @@ def check_update():
         return False
 
 def main(arg_dict: dict):
-    # TODO: allow conf-file to override certain values in constants.py; for example:
+    # TODO: allow conf-file to override certain values in constants.py; for example
     #       if we have a provisioning system setup such that when a new device is
     #       enrolled into the system it gets enrolled and added to a database, we can
     #       specify that url. It would default to None for portability, but allow
@@ -93,6 +98,11 @@ def main(arg_dict: dict):
     # Subcommand processing
     if arg_dict.get("command"):
         cmd = arg_dict.get("command")
+
+        if cmd == "tui":
+            logger.remove()
+
+        logger.add(f"logs/clonix-{now()}.log")
 
         cmdopts = {}
 
@@ -113,7 +123,11 @@ def main(arg_dict: dict):
             exit(0)
 
         elif cmd == "freeze":
-            # TODO: IMPLEMENT
+            # TODO: implement
+            pass
+
+        elif cmd == "tui":
+            # TODO: implement
             pass
 
         else:
@@ -125,7 +139,6 @@ def main(arg_dict: dict):
 
 
 if __name__ == "__main__":
-
     # DO THIS FIRST: update checks
     logger.info("Checking for updates...")
     if check_update():
@@ -140,9 +153,9 @@ if __name__ == "__main__":
         proc = subprocess.run(['sudo', sys.executable] + sys.argv)
         sys.exit(proc.returncode)
 
+    # Make logs dir if not exists
+    if not os.path.exists("logs"): os.mkdir("logs")
 
     args = vars(parser.parse_args())
-
-
     main(args)
     

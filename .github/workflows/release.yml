@@ -8,6 +8,8 @@ on:
 permissions:
   contents: write
 
+# TODO: add ISO generation job
+
 jobs:
   release:
     name: Create GitHub release

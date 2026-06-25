@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Updater script; takes the arguments that were passed to main.py
+# MUST GET RUN FROM main.py
 
 echo "I: update: Updating clonix..."
 

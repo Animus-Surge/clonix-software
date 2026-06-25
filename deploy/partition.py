@@ -9,15 +9,9 @@ from util import constants
 
 from loguru import logger
 
-TYPE_CUSTOM = -1
-TYPE_STANDARD = 0
-TYPE_STANDARD_NO_BTRFS = 1
-TYPE_STANDARD_SECOND_HOME = 2
-
 # TODO: custom
 
 def mk_parts(drives: list[str], dep_type: int, psp: str | None):
-    global TYPE_STANDARD, TYPE_CUSTOM, TYPE_DECRYPT
 
     # Drives (list): first drive boot, second dependent on dep_type. In format /dev/<device>
     # dep_type: If 2 (custom), drives is expected to be a dictionary
@@ -52,6 +46,7 @@ def mk_parts(drives: list[str], dep_type: int, psp: str | None):
             if not util.format_vfat(1): return False
             if not util.format_ext4(2): return False
             if not util.format_crypt(3, psp, 'dm_crypt-0'): return False
+            if not util.format_btrfs(4): return False
 
             return True
 

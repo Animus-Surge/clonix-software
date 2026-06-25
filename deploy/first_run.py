@@ -12,6 +12,7 @@ import sys
 
 from loguru import logger
 
+import util
 from util import constants
 
 # Default configuration
@@ -102,7 +103,7 @@ def copy_file_placeholder(source, target, placeholder, replacement, redact_place
     logger.info("Copied {} to {}; replaced {} with {}".format(source, target, placeholder, replacement if not redact_placeholder else "[HIDDEN]"))
 
 
-def main(mok_pw):
+def generate_init(mok_pw):
     global config
     
     if len(sys.argv) >= 2 and sys.argv[1] and os.path.exists(sys.argv[1]):
@@ -114,6 +115,7 @@ def main(mok_pw):
 
     # Arguments
     if not mok_pw:
+        # Non-critical error, will not quit.
         logger.error("No cloner password set; will not be able to handle MOK.")
 
     # Other dirs should exist already
@@ -137,11 +139,9 @@ def main(mok_pw):
 
     # Activate the service
     try:
-        subprocess.run(["systemctl", "--root=/target", "enable", "init.service"], check=True)
+        subprocess.run(["/bin/systemctl", "--root=/target", "enable", "init.service"], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        logger.error("Failed to enable init service.")
-        for line in e.stderr:
-            logger.trace(line)
+        log_error(e, f"Failed to enable init.service.")
         return False
 
     logger.success("Created and enabled init service.")

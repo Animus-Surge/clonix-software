@@ -9,8 +9,11 @@ import shutil
 import subprocess
 
 from deploy.subvolumes import mk_subvol
+from deploy.first_run import generate_init
+
 import util
 from util import globals
+from util import qr
 
 from deploy.partition import *
 from deploy.setups import *
@@ -36,13 +39,15 @@ def start_deployment(source, target, opts: dict = {}, psp: str | None = None):
       'btrfs_subvols': <list>,
       'luks': <bool>,
       'tpm': <bool>,
-      'swap': <bool>
+      'swap': <bool>,
+      'post_install': <dict>
     }
+
+    post_install
+    {
+      'create_init': <bool>,
+      'reset_puppet_config': <bool>
     """
-
-    prefix = "p" if "nvme" in target else ""
-
-    # TODO: fix for non-encrypted setups
 
     # Set flags
     use_luks = opts.get("luks", True)
@@ -61,6 +66,9 @@ def start_deployment(source, target, opts: dict = {}, psp: str | None = None):
     logger.info(f"Use tpm: {use_tpm}")
 
     logger.info("1: Format target...")
+
+def deploy_encrypted_standard(source, target, psp, opts):
+    prefix = "p" if "nvme" in target else ""
 
     # Partition
     if not mk_parts([target], 0, psp):
@@ -115,6 +123,7 @@ def start_deployment(source, target, opts: dict = {}, psp: str | None = None):
 
     # Setup
     if not setup_image(): return False
+    if not setup_do_upgrades(): return False
     if not setup_grub(): return False
     if psp:
         if not setup_crypt(target, psp): return False
@@ -135,7 +144,33 @@ def start_deployment(source, target, opts: dict = {}, psp: str | None = None):
         util.log_error(e, "Failed to generate final initrd.")
         return False
 
-    # TODO: init.sh
+    # init.sh generation
+    if not generate_init(psp):
+        logger.error("Failed to generate init.sh files.")
+
+    logger.success("Completed install step.")
+    
+    # Post-install steps; non-critical. Anything that fails here will not cause a failed install.
+
+    # Grab master volume key
+    try:
+        subprocess.run(["cryptsetup", "luksDump", "--dump-master-key", "--master-key-file", "/run/user/1000/keyfile.bin", target], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        util.log_error(e, "Failed to grab master LUKS key. You may need to do this manually.")
+    finally:
+        if os.path.exists("/run/user/1000/keyfile.bin"):
+            with open("/run/user/1000/keyfile.bin", 'rb') as f:
+                key = f.read().hex()
+                logger.info("Scan this QR code to get the master LUKS key.")
+                code = qr.generate_copy_qr(key)
+                print(code)
+            subprocess.run(["shred", "-u", "/run/user/1000/keyfile.bin"])
+
+    # Compress filesystem
+    if not util.btrfs_defragment("/target"):
+        logger.error("Failed to compress filesystem. You may need to do this manually.")
+
+
 
     # Done
     logger.success("Completed deployment.")
