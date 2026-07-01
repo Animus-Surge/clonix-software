@@ -9,7 +9,7 @@ import io
 import qrcode
 
 def generate_copy_qr(text):
-    return generate_qr(f"clipboard:{text}")
+    return generate_qr(text)
 
 def generate_qr(content):
     qr = qrcode.QRCode()

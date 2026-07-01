@@ -1,0 +1,10 @@
+project:
+  output-dir: dist
+
+website:
+  title: "CloNIX Documentation"
+
+format:
+  html:
+    theme: slate
+    toc: true

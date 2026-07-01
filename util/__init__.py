@@ -16,24 +16,40 @@ from loguru import logger
 
 import constants
 
-def log_error(error: subprocess.CalledProcessError, message: str):
-    logger.error(f"{message} ({error.returncode})")
-    for line in error.stderr().strip().split('\n'):
-        logger.trace(line)
+def log_error(error: Exception, message: str):
+    
+    if type(error) is subprocess.CalledProcessError:
+        logger.error(f"{message} ({error.returncode})")
+        for line in error.stderr().strip().split('\n'):
+            logger.trace(line)
+
+    else:
+        logger.error(f"{message}")
+        for line in error.args:
+            pass
+
+def run_subprocess(cmd: list | str, prepend=[], user_input=""):
+    final_cmd=prepend
+    for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
+
+    logger.debug(f"Running: `{' '.join(final_cmd)}`")
+
+    try:
+        output = subprocess.run(final_cmd, check=True, capture_output=True, text=True, input=user_input)
+        logger.debug(output.stdout)
+    except subprocess.CalledProcessError as e:
+        log_error(e, f"Command failure: `{' '.join(final_cmd)}`")
+        return False
+
+    return True
 
 def run_chroot_process(cmd: list | str, root="/target", prepend=[], user_input=""):
     final_cmd = prepend
     for x in ["chroot", root, "/bin/bash"]: final_cmd.append(x)
     for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
 
-    logger.debug(f"Running: `{' '.join(final_cmd)}`")
+    return run_subprocess(cmd, user_input=user_input)
     
-    try:
-        subprocess.run(final_cmd, check=True, capture_output=True, text=True, input=user_input)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Command failure: `{' '.join(final_cmd)}`")
-        return False
-    return True
 
 
 def get_part_uuid(mountpoint=None, device=None, by_id=False) -> str | None:
@@ -99,6 +115,8 @@ def cryptsetup_unlock(device, psp) -> bool:
         logger.error("Cannot unlock {}: no such device.".format(device))
         return False
 
+    
+
     cmd = [
             'cryptsetup',
             'luksOpen',
@@ -125,48 +143,27 @@ def cryptsetup_unlock(device, psp) -> bool:
 
 def mount_binds(target) -> bool:
     for dir in ["dev", "proc", "run", "sys"]:
-        mount_cmd = ["mount", "--bind", f"/{dir}", os.path.join(target, dir)]
-        try:
-            subprocess.run(mount_cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            log_error(e, f"Failed to mount {dir}.")
-            return False
+        if not run_subprocess(f"mount --bind {dir} {os.path.join(target, dir)}"): return False
     return True
 
 def mount_device(device, mountpoint, mkdir=True, opts=None) -> bool:
     if "=" not in device or not os.path.exists(device): # Should allow LABEL=root or UUID=<...> to work in place of device
-        logger.error("Cannot mount {}: no such device.".format(device))
+        logger.error(f"Cannot mount {device}: no such device.")
         return False
 
     if not os.path.exists(mountpoint):
-        if mkdir:
-            os.mkdir(mountpoint)
-        else:
-            logger.error("Failed to mount {}; mountpoint {} does not exist, and mkdir is False.".format(device, mountpoint))
+        if not mkdir:
+            logger.error(f"Failed to mount {device}: mountpoint does not exist. (mkdir=False)")
             return False
+        os.mkdir(mountpoint)
+    
+    mount_cmd = f"mount {f'-o{opts}' if opts else ''} {device} {mountpoint}"
 
-    mount_cmd = ["mount"]
-    mount_cmd.append(device)
-    if opts:
-        mount_cmd.append('-o')
-        mount_cmd.append(opts)
-    mount_cmd.append(mountpoint)
-
-    try:
-        subprocess.run(mount_cmd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to mount {device}.")
-        return False
-    return True
+    return run_subprocess(mount_cmd)
 
 def unmount_path(path, recursive=False) -> bool:
     if os.path.ismount(path):
-        try:
-            subprocess.run(['umount', "--recursive" if recursive else "", path], check=True)
-        except subprocess.CalledProcessError as e:
-            log_error(e, f"Failed to unmount {path}.")
-            return False
-        return True
+        return run_subprocess(f"umount {'--recursive' if recursive else ''} {path}")
 
     logger.error("Path {} is not a mountpoint.".format(path))
     return False
@@ -210,10 +207,19 @@ def get_physical_drives() -> list:
 
     return disks
 
+def get_drive_size_raw(device):
+    device_name = os.path.basename(device)
+    sys_path = f"/sys/class/block/{device_name}/size"
+
+    with open(sys_path, 'r') as f: return int(f.read().strip()) * 512
+
 ## BEGIN: Partition and filesystem manager
 
 partition_index = 1
 partitions = []
+
+# DEPRECATED: Moved to partman.py
+
 
 # Drive/partition manager; also handles encrypted partition setup
 def reformat_drive_uefi(drive) -> bool:
@@ -322,12 +328,8 @@ def format_vfat(partition: int) -> bool:
 
 def btrfs_defragment(target_path: str) -> bool:
     logger.info(f"Defragmenting {target_path}...")
-    try:
-        subprocess.run(["btrfs", "filesystem", "defragment", "-rczstd", target_path], check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to defragment {target_path}.")
-        return False
-    return True
+
+    return run_subprocess(f"btrfs filesystem defragment -rczstd {target_path}")
 
 # BEGIN: Boot order management
 def clear_boot_order(keep_windows=False) -> bool:
@@ -391,4 +393,23 @@ def get_image_metadata(image_name: str) -> dict:
     else:
         return {"type": "error", "reason": "Status code.", "status_code": r.status_code}
 
+# BEGIN: File operations
 
+def copy_file(source: str, target: str) -> bool:
+    if not os.path.exists(source):
+        logger.error(f"File {source} does not exist.")
+        return False
+
+    source_text = []
+    with open(source, 'r') as f:
+        source_text = f.readlines()
+
+    try:
+        with open(target, 'w') as f:
+            f.writelines(source_text)
+
+    except OSError as e:
+        log_error(e, f"Failed to copy {source} to {target}.")
+        return False
+
+    return True
