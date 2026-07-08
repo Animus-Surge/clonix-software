@@ -6,13 +6,12 @@ Partition manager
 
 import os
 import re
-from dataclasses import dataclass
-from typing import Optional, Union, Dict
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Union, Dict, List
 
 from loguru import logger
 
-from util import get_drive_size_raw, get_physical_drives, run_subprocess
-import constants
+from util import constants, get_drive_size_raw, get_physical_drives, run_subprocess, gvars, convert
 
 BYTE_MULTIPLIERS = {
         'K': 1024,
@@ -61,9 +60,6 @@ def readable_to_raw(value: str, size: int = 0) -> int:
 
     return int(number * BYTE_MULTIPLIERS.get(unit, 1))
 
-def get_uuid():
-    pass
-
 class Partman_Tui:
     pass # TODO
 
@@ -82,20 +78,18 @@ class Partition:
     label: str = ''  # Drive labels?
     dev_name: str = '' # i.e. nvme0n1p4 or sda2, or md126p2. 
     encrypted: bool = False
-
-    def __repr__(self):
-        return f'{self.index} - {self.dev_name}: {self.label} {raw_to_readable(self.size)} ({self.start} - {self.end}) {self.fstype} {self.mountpoint}'
-
+    flags: List[str] = field(default_factory=list) # Flag names
 
 class Disk:
     size: int
     label: str = 'gpt' # Default to a UEFI boot record format
-    partitions: list
+    partitions: List[Partition]
 
     def __init__(self, device, size):
         self.device = device
         self.size = size
         self.index = 0
+        self.partitions = []
 
     def _reorganize(self):
         # Start by sorting
@@ -123,10 +117,23 @@ class Disk:
 
         return segments
 
+    def get_free_size(self, start: int):
+        free = self.get_free_space()
+
+        for f_start,f_end in free:
+            if f_start <= start and start <= f_end:
+                return f_end - start
+
+        return 0
+
+    def get_layout(self):
+        return { 'device': self.device, 'size': self.size, 'partitions': [asdict(part) for part in self.partitions] }
+
     # Partition management
-    def create_partiiton(self, fstype, size, mountpoint):
-        for start,end in self.get_free_space():
-            if (end - start) >= size:
+    def create_partiiton(self, fstype: str, start: int, end: int, mountpoint: str):
+        size = end - start
+        for f_start,f_end in self.get_free_space():
+            if (f_end - f_start) >= size:
                 self.index += 1
 
                 partition = Partition(self.index, fstype, mountpoint, start, size, start+size)
@@ -138,7 +145,7 @@ class Disk:
 
         return False
 
-    def remove_partition(self, index):
+    def remove_partition(self, index: int):
         if index > len(self.partitions):
             logger.error("Partition index out of bounds.")
             return False
@@ -148,87 +155,311 @@ class Disk:
 
         return True
 
-    def resize_partition(self, index, new_size):
-        if index > len(self.partitions):
+    def set_partition_flags(self, index: int, flags: int, unset=False):
+        if index >= len(self.partitions):
             logger.error("Partition index out of bounds.")
             return False
 
         target = self.partitions[index]
 
-        if target.end == self.size:
-            logger.error("Cannot resize, target partition ends at drive capacity.")
-            return False
+        # Ignore if flags is zero
+        if flags == 0: return True # Failed successfully!
 
-        if target.start+new_size > self.size:
-            logger.error("Cannot resize, new size exceeds capacity.")
-            return False
+        for flag in constants.PART_FLAGS.items():
+            if flags & flag[1]:
+                if unset and flag[0] in target.flags:
+                    target.flags.remove(flag[0])
+                elif not unset and not flag[0] in target.flags: # Should fix if this function gets called multiple times
+                    target.flags.append(flag[0])
 
-        target.size = new_size
-        target.end = target.start + new_size
         return True
 
-    def move_partition(self, index, new_start=-1):
-        if index > len(self.partitions):
+    def set_partition_encrypt(self, index: int, encrypt: bool):
+        if index >= len(self.partitions):
             logger.error("Partition index out of bounds.")
             return False
 
         target = self.partitions[index]
-
-        for start,end in self.get_free_space():
-            if target.start > start and target.start <= end: # Found our position
-                if new_start == -1: # Special case: move partition to start of free space
-                    target.start = start
-                    target.end = start + target.size
-                    return True
-
-                if new_start >= start:
-                    target.start = new_start
-                    target.end = new_start + target.size
-                    return True
-
-        return False
+        target.encrypted = encrypt
+        return True
 
 class Partman:
-    def __init__(self):
-        pass
+    disks: List[Disk]
+
+    def __init__(self, with_detected=True):
+        """
+        Create a new partition manager instance.
+
+        Parameters:
+            with_detected (bool): True: Populate `self.disks` with the detected drives
+        """
+        self.disks = []
+
+        if with_detected:
+            for disk in get_physical_drives():
+                self.disks.append(Disk(disk[0], disk[2]))
 
     # Viewing
     def get_disks(self):
-        pass
+        """
+        Get what disks are being tracked
+
+        To get all information about the disk, use `get_layout`
+
+        Returns:
+            list: List of drive devices (str)
+        """
+        return [disk.device for disk in self.disks]
+
+    def get_disk(self, disk: str | int):
+        target: Disk | None = None
+        if isinstance(disk, int):
+            if disk >= 0 and disk < len(self.disks):
+                target = self.disks[disk]
+            else:
+                logger.error('Disk out of range.')
+                return False
+        else:
+            target = next((drive for drive in self.disks if drive.device == disk), None)
+
+        return target
 
     def get_layout(self):
-        pass
+        """
+        Get the complete partition layout.
 
-    def add_disk(self):
-        pass
+        Returns:
+            list: List of drives (dicts), with their partitions
+        """
+        layout = []
+        for disk in self.disks:
+            if len(disk.partitions) > 0:
+                layout.append(disk.get_layout())
+        return layout
+
+    def get_summary(self, as_list=False):
+        if as_list:
+            pass
+
+        for disk in self.get_disks():
+            for part in disk.partitions:
+                print(f'{disk.device}: {part.index} {part.fstype} - {raw_to_readable(part.start)}-{raw_to_readable(part.end)} ({raw_to_readable(part.size)} - {part.mountpoint}')
 
     # Management
-    def add_partition(self):
-        pass
+    def add_disk(self, disk: str):
+        """
+        Track a disk in partman.
 
-    def remove_partition(self):
-        pass
+        Ex. /dev/sdc, /dev/nvme0n1
 
-    def move_partition(self):
-        pass
-    
-    def resize_partition(self):
-        pass
+        Parameters:
+            disk (str): The disk to track
 
-    def encrypt_partition(self):
-        pass
+        Returns:
+            bool: True if successful
+        """
+        if not os.path.exists(disk):
+            return False
 
-    def set_mountpoint(self):
-        pass
+        disk_obj = Disk(disk, get_drive_size_raw(disk))
+        self.disks.append(disk_obj)
+        return True
+
+    def add_partition(self, disk: str | int, fstype: str, start: str | int, end: str | int, mountpoint: str):
+        """
+        Create a partition on the specified disk.
+
+        Parameters:
+            disk (str | int): Device name or disk index to create the partition on
+            fstype (str): The filesystem type to use with parted
+            size (str | Int): Human-readable or raw byte count size for the partition
+            mountpoint (str): The mountpoint of the disk. Blank means no mountpoint.
+
+        Returns:
+            bool: True if successful.
+        """
+        target = self.get_disk(disk)
+
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        if isinstance(start, str):
+            start = readable_to_raw(start)
+
+        free_size = target.get_free_size(start)
+        if free_size == 0: 
+            logger.error("Partition start point overlaps with existing partition.")
+            return False
+
+        if isinstance(end, str):
+            end = readable_to_raw(end, free_size)
+
+        return target.create_partiiton(fstype, start, end, mountpoint)
+
+    def remove_partition(self, disk: str | int, index: int):
+        """
+        Remove a partition on the specified disk.
+
+        Parameters:
+            disk (str | int): Device name or disk index to remove the partition on
+            index (int): The partition index
+
+        Returns:
+            bool: True if successful.
+        """
+        target = self.get_disk(disk)
+
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+        
+        return target.remove_partition(index)
+
+    def reset(self):
+        """
+        Reset the partition layout to empty.
+        """
+        for disk in self.disks:
+            disk.partitions = []
+
+    def set_encrypted(self, disk: str | int, index: int):
+        target = self.get_disk(disk)
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        return target.set_partition_encrypt(index, True)
+
+    def unset_encrypted(self, disk: str | int, index: int):
+        target = self.get_disk(disk)
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        return target.set_partition_encrypt(index, False)
+
+    def set_mountpoint(self, disk: str | int, index: int, mountpoint: str):
+        target = self.get_disk(disk)
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        if index >= len(target.partitions):
+            logger.error("Partition index out of bounds.")
+            return False
+
+        target.partitions[index].mountpoint = mountpoint
+        return True
+
+    def set_flag(self, disk: str | int, index: int, flags: int):
+        target = self.get_disk(disk)
+
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        return target.set_partition_flags(index, flags)
+
+    def unset_flag(self, disk: str | int, index: int, flags: int):
+        target = self.get_disk(disk)
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        return target.set_partition_flags(index, flags, True)
 
     # Runner
-    def commit(self):
-        pass
+    def commit(self, passphrase=""):
+        """
+        Run the partition setup.
 
-def run_partman():
+        Encrytped volumes will use provided passphrase.
+
+        Parameters:
+            passphrase (str): The passphrase to use for encrypted volumes
+        """
+        logger.info("Starting partman commit...")
+
+        for disk in self.disks:
+            # Start with reformat
+            device = disk.device
+
+            if not format_gpt(device):
+                logger.error(f"Failed to create GPT on {device}.")
+                continue # We can still format the rest of the drives if they exist!
+            
+            index = 1
+            for partition in disk.partitions:
+                if not add_partition(device, index, partition.fstype, partition.start, partition.end, partition.flags):
+                    logger.error(f"Failed to create partition {index} on {device}.")
+                    return False
+
+                fs = partition.fstype
+                if partition.encrypted:
+                    fs = f'encrypt:{partition.fstype}'
+
+                if not create_filesystem(device, index, fs, passphrase):
+                    logger.error(f"Failed to create filesystem on partition {index} on {device}.")
+                    return False
+                
+                index += 1
+            logger.info(f"Formatted {device}.")
+
+        return True
+
+'''
+Example layout:
+
+[
+    {
+        "device": "/dev/sda"
+        "partitions": [
+            {
+                "fstype": "vfat",
+                "start": "8M",
+                "end": "512M",
+                "mountpoint": "/boot/efi"
+            },
+            {
+                "fstype": "ext4",
+                "start": "512M",
+                "end": "2G",
+                "mountpoint": "/boot"
+            },
+            {
+                "fstype": "btrfs",
+                "encrypted": true",
+                "start": "2G",
+                "end": "100%",
+                "mountpoint": "/"
+            }
+        ]
+    }
+]
+
+'''
+
+def run_partman(layout: list):
+    """
+    Run a partman instance, given layout. Intended for automated installs.
+    """
+
+    partman = Partman()
+
+    registered_devices = [disk.device for disk in partman.get_disks()]
+
+    for drive in layout:
+        device = drive.get('device')
+
+        
+
     pass
 
 def run_partman_tui():
+    """
+    Run the standalone TUI application for partman.
+    """
     pass
 
 # BEGIN: system functions
@@ -246,7 +477,8 @@ def format_msdos(disk): # Here for legacy reasons
     
     return run_subprocess(f"parted {disk} --script mklabel msdos")
 
-def add_partition(disk, index, fstype, start, end, flags):
+# Partition management
+def add_partition(disk: str, index: int, fstype: str, start: int, end: int, flags: list[str]):
     if not os.path.exists(disk):
         logger.error(f"{disk} does not exist.")
         return False
@@ -254,9 +486,44 @@ def add_partition(disk, index, fstype, start, end, flags):
     if not run_subprocess(f"parted {disk} --script mkpart primary {fstype} {start} {end}"): return False
 
     # Flags
-    if flags != 0:
-        for flag in constants.PART_FLAGS.items():
-            if flags & flag[1]:
-                if not run_subprocess(f'parted {disk} -- set {index} {flag[0]} on'): return False
+    for flag in flags:
+        if not run_subprocess(f"parted {disk} --script set {index} {flag} on"):
+            return False
 
     return True
+
+def create_encrypted_volume(disk: str, index: int):
+    if not os.path.exists(disk):
+        logger.error(f'{disk} does not exist.')
+        return False
+
+    psp = gvars.ENC_PASSPHRASE
+
+    pass
+
+def create_filesystem(disk: str, index: int, filesystem: str):
+    prefix=('p' if 'nvme' in disk or 'md' in disk else '')
+    full_path = f'{disk}{prefix}{index}'
+
+    if not os.path.exists(full_path):
+        logger.error(f"Partition {full_path} does not exist.")
+        return False
+
+    if 'encrypt' in filesystem:
+        pass
+
+    cmd = ""
+
+    match filesystem:
+        case 'btrfs':
+            cmd = f"mkfs.btrfs -f {full_path}"
+        case 'ext4':
+            cmd = f"mkfs.ext4 {full_path}"
+        case 'vfat' | 'fat32':
+            # Using vfat regardless. fat32 is provided to parted.
+            cmd = f"mkfs.vfat -F 32 {full_path}"
+        case _:
+            logger.error(f"Unknown filesystem type: {filesystem}")
+            return False
+
+    return run_subprocess(cmd)

@@ -8,7 +8,7 @@ import urwid
 
 import util
 from util import constants
-from util import globals
+from util import gvars
 
 from widgets import *
 

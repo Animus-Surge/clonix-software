@@ -5,19 +5,47 @@ Utility functions
 """
 
 
+import base64
 import os
 import re
 import shlex
 import subprocess
 import time
+from itertools import cycle
 
 import httpx
+from dotenv import load_dotenv
 from loguru import logger
 
-import constants
+from . import constants, gvars
 
+# Encryption functions (obfuscates values to hide them from prying eyes)
+# NOTE: These functions should NOT replace actual encryption.
+def encrypt_text(value: str) -> str:
+    v_bytes = value.encode('utf-8')
+    key = gvars.ENC_MASTER_KEY
+    encrypted = bytes(a ^ b for a, b in zip(v_bytes, cycle(key)))
+    return base64.b64encode(encrypted).decode('utf-8')
+
+def decrypt_text(value: str) -> str:
+    v_bytes = base64.b64decode(value.encode('utf-8'))
+    key = gvars.ENC_MASTER_KEY
+    decrypted = bytes(a ^ b for a,b in zip(v_bytes, cycle(key)))
+    return decrypted.decode('utf-8')
+
+def load_key_from_env(): # Loads the master obfuscation key
+    if not load_dotenv():
+        logger.warning("Could not load .env file. Using system env")
+
+    var = os.getenv('ENC_MASTER_KEY')
+    if not var:
+        logger.error("System env does not contain required variable 'ENC_MASTER_KEY'")
+    else:
+        logger.info("Loaded master key from env.")
+        gvars.ENC_MASTER_KEY = var.encode('utf-8')
+
+# Log functions
 def log_error(error: Exception, message: str):
-    
     if type(error) is subprocess.CalledProcessError:
         logger.error(f"{message} ({error.returncode})")
         for line in error.stderr().strip().split('\n'):
@@ -28,6 +56,7 @@ def log_error(error: Exception, message: str):
         for line in error.args:
             pass
 
+# Subprocess functions
 def run_subprocess(cmd: list | str, prepend=[], user_input=""):
     final_cmd=prepend
     for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
@@ -50,8 +79,6 @@ def run_chroot_process(cmd: list | str, root="/target", prepend=[], user_input="
 
     return run_subprocess(cmd, user_input=user_input)
     
-
-
 def get_part_uuid(mountpoint=None, device=None, by_id=False) -> str | None:
     if mountpoint:
         mountpoint = os.path.abspath(mountpoint)
@@ -101,7 +128,6 @@ def get_part_uuid(mountpoint=None, device=None, by_id=False) -> str | None:
                 except OSError: continue
         return None
         
-
 def check_dir_empty(directory) -> bool:
     if os.path.isdir(directory):
         with os.scandir(directory) as entries:
@@ -174,7 +200,7 @@ def get_physical_drives() -> list:
     disks = []
 
     if not os.path.exists('/sys/block'):
-        logger.critical("This system must be run on *nix systems (Linux, MacOS, etc).")
+        logger.critical("This system must be run on Linux systems.")
         return []
 
     for dev in os.listdir('/sys/block'):
@@ -186,7 +212,7 @@ def get_physical_drives() -> list:
 
         if not os.path.exists(os.path.join(dev_path, 'device')): continue
 
-        # Get drive information (manufacturer, capacity
+        # Get manufacturer info
 
         dev_manuf = 'Unknown'
         for name_file in ['device/model', 'device/vendor']:
@@ -195,14 +221,9 @@ def get_physical_drives() -> list:
                 with open(full_path, 'r') as f: dev_manuf = f.read().strip()
                 break
 
-        dev_capac = 0.0
-        size_path = os.path.join(dev_path, 'size')
-        if os.path.exists(size_path):
-            with open(size_path, 'r') as f:
-                sectors = int(f.read().strip())
-                dev_capac = round((sectors * 512) / (1024**3), 2)
-
+        # Drive device path and capacity
         dev_path = f"/dev/{dev}"
+        dev_capac = get_drive_size_raw(dev_path)
         disks.append((dev_path, dev_manuf, dev_capac))
 
     return disks

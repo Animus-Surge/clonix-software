@@ -128,3 +128,22 @@ class Togglegroup(urwid.WidgetWrap):
                     return i
                 i+=1
         return None
+
+class QRPopup(urwid.WidgetWrap):
+    def __init__(self, qr_code, title='', on_continue=None):
+        self.on_continue = on_continue
+
+        qr_text = urwid.Text(qr_code, align='center', wrap='clip')
+
+        button = urwid.Button("Continue", on_press=self._button_pressed)
+        centered_button = urwid.GridFlow([button], cell_width=14, h_sep=1, v_sep=0, align='center')
+
+        layout = urwid.Pile([qr_text, urwid.Divider(), centered_button])
+
+        line_box = urwid.LineBox(layout, title=title)
+
+        super().__init__(line_box)
+
+    def _button_pressed(self, button):
+        if self.on_continue:
+            self.on_continue(button)

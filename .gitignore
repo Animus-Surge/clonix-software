@@ -6,6 +6,9 @@ main.dist/
 main.build/
 result
 
+# Dashboard specific stuff
+node_packages/
+
 logs/
 
 # Virtual environments
@@ -16,5 +19,7 @@ logs/
 *.tar*
 *.zip
 *.lock
+*.env*
 
-
+# Random files
+notes.md

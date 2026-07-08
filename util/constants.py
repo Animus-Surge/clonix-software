@@ -48,6 +48,15 @@ TARGET_INIT_SERVICE=os.path.join(TARGET_SYSTEMD, "init.service")
 DRIVER_MARKER="# <DRIVER: insert>"
 PACKAGE_MARKER="# <PACKAGE: insert>"
 
+# Utilities
+BYTE_MULTIPLIERS = {
+    'K': 1024,
+    'M': 1024**2,
+    'G': 1024**3,
+    'T': 1024**4,
+    'E': 1024**5,
+}
+
 # TUI characters
 
 # Check boxes

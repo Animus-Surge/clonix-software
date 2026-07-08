@@ -17,7 +17,7 @@ Multi-operating system cloning tool based on NixOS
 
 All python requirements are present in the `requirements.txt` file.
 
-### Packages (for standalone applications)
+### Packages (for custom instances of Clonix)
 
 wip
 
@@ -35,4 +35,10 @@ The `deploy` module is what actually does the cloning of the operating system ta
 
 ## How to use
 
+### Presets
 
+Presets allow for automated installs, given a target drive selected on boot.
+
+#### Standard deploy
+
+Uses the base image marked as `standard`. Follows the format of the standard install template.
