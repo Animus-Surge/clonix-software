@@ -11,6 +11,7 @@ from typing import Optional, Union, Dict, List
 
 from loguru import logger
 
+import util
 from util import constants, get_drive_size_raw, get_physical_drives, run_subprocess, gvars, convert
 
 BYTE_MULTIPLIERS = {
@@ -79,6 +80,13 @@ class Partition:
     dev_name: str = '' # i.e. nvme0n1p4 or sda2, or md126p2. 
     encrypted: bool = False
     flags: List[str] = field(default_factory=list) # Flag names
+
+    # Fields put in by make_self
+    subvols = []
+    encrypted_volume_name = ''
+
+    def make_self(self):
+        pass
 
 class Disk:
     size: int
@@ -370,7 +378,7 @@ class Partman:
         return target.set_partition_flags(index, flags, True)
 
     # Runner
-    def commit(self, passphrase=""):
+    def commit(self):
         """
         Run the partition setup.
 
@@ -399,7 +407,7 @@ class Partman:
                 if partition.encrypted:
                     fs = f'encrypt:{partition.fstype}'
 
-                if not create_filesystem(device, index, fs, passphrase):
+                if not create_filesystem(device, index, fs):
                     logger.error(f"Failed to create filesystem on partition {index} on {device}.")
                     return False
                 
@@ -413,7 +421,8 @@ Example layout:
 
 [
     {
-        "device": "/dev/sda"
+        "device": "/dev/sda",
+        "label": "gpt", // Optional; default `gpt`
         "partitions": [
             {
                 "fstype": "vfat",
@@ -492,14 +501,17 @@ def add_partition(disk: str, index: int, fstype: str, start: int, end: int, flag
 
     return True
 
-def create_encrypted_volume(disk: str, index: int):
-    if not os.path.exists(disk):
-        logger.error(f'{disk} does not exist.')
+def create_encrypted_volume(device: str):
+    if not os.path.exists(device):
+        logger.error(f'{device} does not exist.')
         return False
 
-    psp = gvars.ENC_PASSPHRASE
+    psp = util.decrypt_text(gvars.ENC_PASSPHRASE)
 
-    pass
+    cmd = f'cryptsetup luksFormat {device}'
+
+    if not run_subprocess(cmd, user_input=psp): return False
+    return util.unlock_encrypted_partition(device, psp)
 
 def create_filesystem(disk: str, index: int, filesystem: str):
     prefix=('p' if 'nvme' in disk or 'md' in disk else '')

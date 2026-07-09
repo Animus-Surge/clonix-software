@@ -141,8 +141,6 @@ def cryptsetup_unlock(device, psp) -> bool:
         logger.error("Cannot unlock {}: no such device.".format(device))
         return False
 
-    
-
     cmd = [
             'cryptsetup',
             'luksOpen',
@@ -164,6 +162,24 @@ def cryptsetup_unlock(device, psp) -> bool:
     if not os.path.exists("/dev/mapper/dm_crypt-0"):
         logger.error("Failed to unlock {}; unknown error.".format(device))
         return False
+
+    return True
+
+def unlock_encrypted_partition(device, psp, volname='dm_crypt-0') -> bool:
+    if not os.path.exists(device):
+        logger.error(f"Cannot unlock {device}: no such device.")
+        return False
+
+    vol_index = 0
+    while os.path.exists(volname):
+        vol_index += 1
+        volname = f'dm_crypt-{vol_index}'
+
+    if not run_subprocess(f'cryptsetup luksOpen {device} {volname}', user_input=psp): return False
+    try:
+        time.sleep(2)
+    except InterruptedError:
+        logger.trace("Sleep interrupted.")
 
     return True
 

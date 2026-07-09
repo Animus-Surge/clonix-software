@@ -11,6 +11,7 @@ COPY_TPM_12_DRACUT_MODULE = False
 
 # Keys
 ENC_MASTER_KEY = b'<placeholder>' # gitguardian will throw a fit with this
+ENC_PASSPHRASE = ''
 
 # State machine
 
