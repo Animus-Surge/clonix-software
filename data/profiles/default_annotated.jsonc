@@ -1,0 +1,88 @@
+{
+  "label": "gpt",
+  "partitions": [
+    {
+      "fstype": "vfat",
+      "start": "8M",
+      "end": "512M",
+      "flags": ["esp"],
+      "mountpoint": "/boot/efi"
+    },
+    {
+      "fstype": "ext4",
+      "start": "512M",
+      "end": "2G",
+      "mountpoint": "/boot"
+    },
+    {
+      "fstype": "btrfs",
+      "label": "root",
+      "start": "2G",
+      "end": "100%",
+      "mountpoint": "/",
+      "encrypted": true, // For automated installs, say for each system being the same exact config, we can add "passphrase" to this. 
+      "subvols": [
+        {
+          "name": "@",
+          "mountpoint": "/"
+        },
+        {
+          "name": "@home",
+          "mountpoint": "/home",
+          "mountopts": ["nodev", "nosuid"]
+        },
+        {
+          "name": "@swap",
+          "mountpoint": "/swap",
+          "mountopts": ["nodev", "noexec", "nosuid"]
+        },
+        {
+          "name": "@var",
+          "mountpoint": "/var",
+          "mountopts": ["nodev", "nosuid"]
+        },
+        {
+          "name": "@var_log",
+          "mountpoint": "/var/log",
+          "mountopts": ["nodev", "noexec", "nosuid"]
+        },
+        {
+          "name": "@var_log_audit",
+          "mountpoint": "/var/log/audit",
+          "mountopts": ["nodev", "noexec", "nosuid"]
+        },
+        {
+          "name": "@var_tmp",
+          "mountpoint": "/var/tmp",
+          "mountopts": ["nodev", "nosuid"]
+        }
+      ]
+    }
+  ],
+  "extra_fstab": [
+    {
+      "device": "tmpfs",
+      "mountpoint": "/dev/shm",
+      "fstype": "tmpfs",
+      "mountopts": ["defaults", "nodev", "noexec", "nosuid"],
+      "freq": 0,
+      "passno": 0
+    },
+    {
+      "device": "tmpfs",
+      "mountpoint": "/tmp",
+      "fstype": "tmpfs",
+      "mountopts": ["defaults", "nodev", "nosuid"],
+      "freq": 0,
+      "passno": 0
+    },
+    {
+      "device": "/swap/swapfile",
+      "mountpoint": "none",
+      "fstype": "swap",
+      "mountopts": ["defaults"],
+      "freq": 0,
+      "passno": 0
+    }
+  ]
+}

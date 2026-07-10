@@ -1,0 +1,111 @@
+---
+title: "Partman Layout"
+---
+
+## Partman Layout Objects
+
+The layout object defines the partition structure of the system. Every drive, except for RAM disks, CD drives,
+and ROMs are outlined. This structure is both created and used by `partman` to format and partition each
+drive.
+
+### Example
+
+```
+[
+  {
+    "device": "/dev/nvme0n1",
+    "ignore": false,
+    "label": "gpt",
+    "partitions": [
+      {
+        "fstype": "vfat",
+        "start": "8M",
+        "end": "512M",
+        "flags": ["esp"],
+        "mountpoint": "/boot/efi"
+      },
+      {
+        "fstype": "ext4",
+        "start": "512M",
+        "end": "2G",
+        "mountpoint": "/boot"
+      },
+      {
+        "fstype": "btrfs",
+        "label": "root",
+        "start": "2G",
+        "end": "100%",
+        "mountpoint": "/",
+        "encrypted": true,
+        "encryption_settings": {
+          "use_tpm": true
+        },
+        "subvolumes": [
+          {
+            "name": "@",
+            "mountpoint": "/"
+          },
+          {
+            "name": "@home",
+            "mountpoint": "/home",
+            "mountopts": ["nodev", "nosuid"]
+          }
+        ]
+      }
+    ]
+    "extra_fstab": [
+      {
+        "device": "tmpfs",
+        "mountpoint": "/dev/shm",
+        "fstype": "tmpfs",
+        "mountopts": ["defaults", "nodev", "noexec", "nosuid"],
+        "freq": 0,
+        "passno": 0
+      }
+    ]
+  },
+  {
+    "device": "/dev/sda",
+    "ignore": true
+  }
+]       
+```
+
+## Disks
+
+Each object in the root array represents one physical disk on the system. ALL disks are represented here, even if
+there are no partition operations to be done on it. This is to keep track of all of them.
+
+### Fields
+
+- `device`: The physical device of the disk (i.e. `/dev/sda` or `/dev/nvme0n1`)
+- `ignore`: This flag controls if any `parted` calls will be run on this device or not. `true` means the device will be 
+  completely ignored.
+- `label`: The partition table to use (either `gpt` for UEFI systems or `msdos` for Legacy boot systems)
+- `partitions`: The list of partitions to be created on the disk.
+- `extra_fstab`: A list of extra entries to put into `/target/etc/fstab`, defined per disk. Each field in each entry
+  is exactly the same as what is listed in the manpage for `fstab`.
+
+## Partitions
+
+Each partition object represents a single partition. This is where settings for encryption or `btrfs` are set up, for 
+subvolumes or additional keys (like using the TPM as a hardware encryption device). Handling for TPM version is done 
+within the cloner itself, not here.
+
+### Fields
+
+- `fstype`: The filesystem to use when formatting the disk
+- `label`: (Optional) The filesystem label
+- `start`: The start point of the partition
+- `end`: The end point of the partition
+- `mountpoint`: Where the partition should be mounted. (Note: this value is completely ignored if using `btrfs`.)
+- `encrypted`: (Optional) Flag to tell the system that this partition should be encrypted using `cryptsetup`.
+- `encryption_settings`: (Optional):
+  - `use_tpm`: (Optional) Flag to tell the system to add the TPM as a hardware encryption device for this partition.
+- `subvolumes`: (Optional) A list of subvolumes:
+  - `name`: The name of the subvolume
+  - `mountpoint`: Where this subvolume should be mounted. This gets used to copy over the data from the existing
+    mountpoint, if any, to this subvolume.
+  - `mountopts`: (Optional) A list of additional mount options to append to in `fstab`
+
+

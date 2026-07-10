@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
+# Clonix: update.sh
+# 
 # Updater script; takes the arguments that were passed to main.py
 # MUST GET RUN FROM main.py
+#
+# This script will not fail. It will just fail to update! It will
+# execute clonix regardless.
 
 echo "I: update: Updating clonix..."
 
@@ -10,7 +15,7 @@ if $(git rev-parse --is-inside-work-tree); then
 
   if [[ $? -ne 0 ]]; then
     echo "E: Failed to update."
-    exit 1
+  fi
 
 else
   echo "N: update: Not a git repo; using curl to download latest."
@@ -20,8 +25,7 @@ else
     curl -sL "$dl_url" | tar -xzf - --strip-components=1
     echo "S: update: Done."
   else
-    echo "E: Failed to download from ${dl_url}."
-    exit 1
+    echo "E: update: Failed to download from ${dl_url}."
   fi
 fi
 

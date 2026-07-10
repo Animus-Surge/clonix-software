@@ -12,6 +12,7 @@ import shlex
 import subprocess
 import time
 from itertools import cycle
+from typing import Tuple
 
 import httpx
 from dotenv import load_dotenv
@@ -59,7 +60,12 @@ def log_error(error: Exception, message: str):
 # Subprocess functions
 def run_subprocess(cmd: list | str, prepend=[], user_input=""):
     final_cmd=prepend
-    for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
+    
+    for x in (shlex.split(cmd) if isinstance(cmd, str) else cmd): final_cmd.append(x)
+
+    if constants.DRY_RUN:
+        logger.info(f"DRY_RUN{f'(input={user_input})'}: {' '.join(final_cmd)}")
+        return True
 
     logger.debug(f"Running: `{' '.join(final_cmd)}`")
 
@@ -69,13 +75,19 @@ def run_subprocess(cmd: list | str, prepend=[], user_input=""):
     except subprocess.CalledProcessError as e:
         log_error(e, f"Command failure: `{' '.join(final_cmd)}`")
         return False
+    except FileNotFoundError as e:
+        log_error(e, f"Command failure (FileNotFoundError): `{' '.join(final_cmd)}`")
+        return False
+    except PermissionError as e:
+        log_error(e, f"Command failure (PermissionError): `{' '.join(final_cmd)}`")
+        return False
 
     return True
 
 def run_chroot_process(cmd: list | str, root="/target", prepend=[], user_input=""):
     final_cmd = prepend
     for x in ["chroot", root, "/bin/bash"]: final_cmd.append(x)
-    for x in (shlex.split(cmd) if cmd is str else cmd): final_cmd.append(x)
+    for x in (shlex.split(cmd) if isinstance(cmd, str) else cmd): final_cmd.append(x)
 
     return run_subprocess(cmd, user_input=user_input)
     
@@ -136,52 +148,23 @@ def check_dir_empty(directory) -> bool:
             return True
     return True # Ignore it; or error, idk
 
-def cryptsetup_unlock(device, psp) -> bool:
-    if not os.path.exists(device):
-        logger.error("Cannot unlock {}: no such device.".format(device))
-        return False
-
-    cmd = [
-            'cryptsetup',
-            'luksOpen',
-            device,
-            'dm_crypt-0'
-            ]
-
-    try:
-        subprocess.run(cmd, input=psp, check=True, capture_output=True, text=True)
-        time.sleep(5) # Allow it to run
-
-    except subprocess.CalledProcessError as e:
-        log_error(e, "Failed to unlock {}".format(device))
-        return False
-
-    except InterruptedError:
-        logger.trace("Sleep interrupted.")
-
-    if not os.path.exists("/dev/mapper/dm_crypt-0"):
-        logger.error("Failed to unlock {}; unknown error.".format(device))
-        return False
-
-    return True
-
-def unlock_encrypted_partition(device, psp, volname='dm_crypt-0') -> bool:
+def unlock_encrypted_partition(device, psp, volname='dm_crypt-0') -> Tuple[bool, str]:
     if not os.path.exists(device):
         logger.error(f"Cannot unlock {device}: no such device.")
-        return False
+        return False, ''
 
     vol_index = 0
     while os.path.exists(volname):
         vol_index += 1
         volname = f'dm_crypt-{vol_index}'
 
-    if not run_subprocess(f'cryptsetup luksOpen {device} {volname}', user_input=psp): return False
+    if not run_subprocess(f'cryptsetup luksOpen {device} {volname}', user_input=psp): return False, ''
     try:
         time.sleep(2)
     except InterruptedError:
         logger.trace("Sleep interrupted.")
 
-    return True
+    return True, volname
 
 def mount_binds(target) -> bool:
     for dir in ["dev", "proc", "run", "sys"]:
@@ -249,124 +232,6 @@ def get_drive_size_raw(device):
     sys_path = f"/sys/class/block/{device_name}/size"
 
     with open(sys_path, 'r') as f: return int(f.read().strip()) * 512
-
-## BEGIN: Partition and filesystem manager
-
-partition_index = 1
-partitions = []
-
-# DEPRECATED: Moved to partman.py
-
-
-# Drive/partition manager; also handles encrypted partition setup
-def reformat_drive_uefi(drive) -> bool:
-    # parted {drive} -- mklabel gpt
-    # partition_index = 1
-    global partition_index
-    cmd = ['parted', drive, '--', 'mklabel', 'gpt']
-    try:
-        subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to reformat {drive} as GPT.")
-        return False
-    partition_index = 1
-    return True
-
-
-def make_partition(drive: str, fstype: str, start: str, end: str, flags=0) -> int:
-    global partition_index
-    # parted {drive} -- mkpart primary {fstype} {start} {end}
-    # for each flag:
-    #    parted {drive} -- set {partition_index} {flag} on
-    # partition_index++
-
-    prefix = "p" if "nvme" in drive else ""
-
-    # Partition step
-    cmd_partition = [
-            'parted', drive,
-            '--',
-            'mkpart', 'primary', fstype, start, end
-            ]
-    try:
-        subprocess.run(cmd_partition, input=constants.YES, check=True, text=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to create partition {partition_index} as {fstype} on {drive}.")
-        return -1
-
-    # Flags step
-
-    # Skip this step entirely; saves overhead
-    flags_enabled = []
-    if flags != 0: 
-        for flag in constants.PART_FLAGS.items():
-            if flags & flag[1]:
-                flag_cmd = ['parted', drive, '--', 'set', str(partition_index), flag[0], 'on']
-            
-                try:
-                    subprocess.run(flag_cmd, check=True, text=True, capture_output=True)
-                    flags_enabled.append(flag[0])
-                except subprocess.CalledProcessError as e:
-                    log_error(e, f"Failed to run flag {flag[0]} ({flag[1]}) on index {partition_index}.")
-                    return -1
-
-    logger.info("Created partition {} as {}. Enabled flags: {}".format(partition_index, fstype, ','.join(flags_enabled)))
-
-    index = partition_index
-    partition_index += 1
-    partitions.append(f"{drive}{prefix}{index}")
-    return index
-    
-# TODO: support more format options; i.e. ntfs, fat[8,16,32], etc.
-def format_crypt(partition: int, psp: str, cryptname: str) -> bool:
-    """
-    Format and open a LUKS volume
-    """
-
-    cmd = ['cryptsetup', 'luksFormat', '-q', partitions[partition-1], '-']
-    cmd2 = ['cryptsetup', 'luksOpen', partitions[partition-1], cryptname, '-'] # Adding cryptname here should allow for easy testing on existing encrypted systems
-    try:
-        subprocess.run(cmd, input=psp, check=True, capture_output=True, text=True)
-        time.sleep(2)
-        subprocess.run(cmd2, input=psp, check=True, capture_output=True, text=True)
-        time.sleep(2)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to format {partition} as crypt.")
-        return False
-    partitions.append(f"/dev/mapper/{cryptname}") # Add this so other formatters can format the encrypted partition
-    return True
-
-def format_ext4(partition: int) -> bool:
-    cmd = ['mkfs.ext4', partitions[partition-1]]
-    try:
-        subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to format {partition} as ext4.")
-        return False
-    return True
-
-def format_btrfs(partition: int) -> bool:
-    cmd = ['mkfs.btrfs', '-f', partitions[partition-1]]
-    try:
-        subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to format {partition} as btrfs.")
-        return False
-    return True
-
-def format_vfat(partition: int) -> bool:
-    cmd = ['mkfs.vfat', '-F', '32', partitions[partition-1]]
-    try:
-        subprocess.run(cmd, input=constants.YES, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to format {partition} as vfat.")
-        return False
-    return True
-
-def btrfs_defragment(target_path: str) -> bool:
-    logger.info(f"Defragmenting {target_path}...")
-
-    return run_subprocess(f"btrfs filesystem defragment -rczstd {target_path}")
 
 # BEGIN: Boot order management
 def clear_boot_order(keep_windows=False) -> bool:

@@ -12,29 +12,13 @@ CLONIX_TITLE = "Clonix"
 # MUST GET OVERRIDDEN FOR PRODUCTION ENVIRONMENTS
 CLONIX_API_URL = "localhost:5000"
 
+# System flags
+DRY_RUN = True  # Whether critical operations should be executed or not
+DEVELOP_MODE = True # Handles if dev mode variable checking should take place. Also controls log state
+LOG_STATE = 'vvv'  # Handled by the -v/--verbose options
+
 # Command input expectations (i.e. confirmations)
 YES = 'y\n' * 10
-
-# Partition manager flags
-PART_FLAGS = {
-        'boot': 0x1,
-        'root': 0x2,
-        'swap': 0x4,
-        'hidden': 0x8,
-        'raid': 0x10,
-        'lvm': 0x20,
-        'lba': 0x40,
-        'legacy_boot': 0x80,
-        'irst': 0x100,
-        'msftres': 0x200,
-        'esp': 0x400,
-        'chromeos_kernel': 0x800,
-        'bls_boot': 0x1000,
-        'linux-home': 0x2000,
-        'no_automount': 0x4000,
-        'bios_grub': 0x8000,
-        'palo': 0x10000
-}
 
 # First run constants
 CLONER_DIR=os.path.join(os.getenv("HOME", ""), "cloner")

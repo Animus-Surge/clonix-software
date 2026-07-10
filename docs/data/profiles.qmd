@@ -1,0 +1,50 @@
+---
+title: "Clonix Profiles"
+---
+
+# Clonix Profiles
+
+Profiles are useful for quick provisioning of a system, or automated provisioning of many at once.
+Each profile contains information about the system type, including hostnames, packages and
+applications, drivers, networks, and other information that might be persistent between multiple
+devices under the same group.
+
+Each setup should include a default profile (`default.json`), which defines default values, such
+as the partition structure and default applications. Profiles should be contained in the API route
+`/profiles` and have easy names to recognize which profile is for what purpose.
+
+### Example
+
+```
+{
+  "name": "Default",
+  "networks": {},
+  "partition_layout":{},
+  "packages":[],
+  "drivers":[],
+}
+```
+
+## Fields
+
+Note: For some of these fields, these can be overridden by the configuration management system
+used to configure the devices. Packages, networks, and drivers are intended to be optional
+for this purpose. Including them here allows the configuration management system to do slightly
+less work if needed.
+
+- `name`: The friendly name for the profile
+- `partition_layout`: The partition layout of the PRIMARY disk. Primary disk is auto-selected
+  for systems with only one disk. The IT personnel performing the deployment will have to select
+  which disk to use as the primary disk otherwise. See [Parman Layout Objects](./partman_layout.qmd)
+  for more information on partition layouts.
+- `networks`: (Optional) Extra network configurations to place in the target (for Wi-Fi or extra
+  lab connections)
+- `packages`: (Optional) The list of extra packages to install. Can be an object in the following
+  format:
+  - `file`: The package file to download and install. Can be an API route, or a full URL
+    to a file.
+  - `sourcepath`: (Optional) Where to download the source (defaults to `/opt/<orgname>`)
+- `drivers`: (Optional) The list of extra drivers to install. This can be a package name, a URL,
+  or a format similar to the object definition in `packages`.
+
+
