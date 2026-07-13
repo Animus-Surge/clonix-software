@@ -1,0 +1,8 @@
+---
+title: "API Documentation"
+---
+
+# API Documentation
+
+- [`machine`](api/machine.qmd)
+

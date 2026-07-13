@@ -1,12 +1,12 @@
 ---
-title: "Partman Layout"
+title: "Partition Layout"
 ---
 
-## Partman Layout Objects
+# Partition Layout Objects
 
 The layout object defines the partition structure of the system. Every drive, except for RAM disks, CD drives,
 and ROMs are outlined. This structure is both created and used by `partman` to format and partition each
-drive.
+drive, as well as some areas in the main script to handle options like subvolumes and `fstab` entries.
 
 ### Example
 

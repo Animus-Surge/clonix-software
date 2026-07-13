@@ -1,3 +1,8 @@
 # CloNIX - Filesystem based operating system cloning tool
 
-wip
+## Usage
+
+```
+clonix
+
+```
