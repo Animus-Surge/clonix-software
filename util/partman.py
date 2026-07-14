@@ -243,7 +243,7 @@ class Partman:
 
         for disk in self.get_disks():
             for part in disk.partitions:
-                print(f'{disk.device}: {part.index} {part.fstype} - {raw_to_readable(part.start)}-{raw_to_readable(part.end)} ({raw_to_readable(part.size)} - {part.mountpoint}')
+                print(f'{disk.device}: {part.index} {part.fstype} - {part.start_readable}-{part.end_readable} ({part.size_readable} - {part.mountpoint}')
 
     # Management
     def add_disk(self, disk: str):
@@ -283,12 +283,16 @@ class Partman:
         start_raw = 0
         end_raw = 0
 
+        start_readable = ""
+        end_readable = ""
+
         if not target:
             logger.error("Could not find disk.")
             return False
 
         if isinstance(start, str):
             start_raw = readable_to_raw(start)
+            start_readable = start
 
         free_size = target.get_free_size(start_raw)
         if free_size == 0: 
@@ -297,8 +301,9 @@ class Partman:
 
         if isinstance(end, str):
             end_raw = readable_to_raw(end, free_size)
+            end_readable = end
 
-        return target.create_partiiton(fstype, start_raw, end_raw, start, end, mountpoint)
+        return target.create_partiiton(fstype, start_raw, end_raw, start_readable, end_readable, mountpoint)
 
     def remove_partition(self, disk: str | int, index: int):
         """

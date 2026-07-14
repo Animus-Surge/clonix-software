@@ -22,12 +22,13 @@ class Partition:
     mountpoint: str
 
     # RAW values (i.e. number of bytes)
-    # Used to determine partition ordering
+    # Used to determine partition ordering and size constraints
     start: int
     size: int
     end: int
 
     # Readable values (i.e. 500G, 2.6T)
+    # Actually get passed to `parted`
     start_readable: str = ''
     end_readable: str = ''
 
@@ -39,7 +40,7 @@ class Partition:
     # Encryption settings
     encrypted: bool = False
     encrypted_volume_name = ""
-    passphrase = ''
+    passphrase = '' # Here for cases where multiple encrypted devices have different passphrases (which is more secure)
 
-    subvols = [] # Btrfs subvolumes; blank for optional
+    subvols: List[BtrfsSubvol] = field(default_factory=list) # Btrfs subvolumes; blank for optional
 
