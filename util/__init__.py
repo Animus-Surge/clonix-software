@@ -59,8 +59,12 @@ def log_error(error: Exception, message: str):
 
 # Subprocess functions
 def run_subprocess(cmd: list | str, prepend=[], user_input=""):
-    final_cmd=prepend
-    
+    logger.debug(cmd)
+
+    final_cmd = []
+
+    # Join command
+    for x in prepend: final_cmd.append(x)
     for x in (shlex.split(cmd) if isinstance(cmd, str) else cmd): final_cmd.append(x)
 
     if constants.DRY_RUN:

@@ -1,0 +1,20 @@
+[
+  {
+    "device": "/dev/sda",
+    "label": "gpt",
+    "partitions": [
+      {
+        "fstype": "ext4",
+        "start": "8M",
+        "end": "32G",
+        "mountpoint": "/boot"
+      },
+      {
+        "fstype": "btrfs",
+        "start": "32G",
+        "end": "100%",
+        "mountpoint": "/"
+      }
+    ]
+  }
+]

@@ -369,6 +369,20 @@ class Partman:
 
         return target.set_partition_flags(index, flags)
 
+    def set_label(self, disk: str | int, index: int, label: str):
+        target = self.get_disk(disk)
+
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+        
+        try:
+            target.partitions[index-1].label = label
+        except IndexError:
+            logger.error("Partition not found.")
+            return False
+        return True
+
     # Runner
     def commit(self):
         """
@@ -405,6 +419,10 @@ class Partman:
                 if not create_filesystem(device, index, fs, partition):
                     logger.error(f"Failed to create filesystem on partition {index} on {device}.")
                     return False
+                
+                part_device = f'{device}{'p' if 'nvme' in device else ''}{index}'
+                logger.info(f'Created partition on {part_device}')
+                partition.dev_name = part_device
                 
                 index += 1
             logger.info(f"Formatted {device}.")
@@ -463,9 +481,28 @@ def run_partman(layout: list):
     for drive in layout:
         device = drive.get('device')
 
-        
+        if device in registered_devices:
+            index = 1
+            for partition in device.get('partitions'):
+                partman.add_partition(device, 
+                                      partition.get('fstype'), 
+                                      partition.get('start'), 
+                                      partition.get('end'), 
+                                      partition.get('mountpoint'))
 
-    pass
+                if 'label' in partition:
+                    partman.set_label(device, index, partition.get('label'))
+
+                if 'flags' in partition:
+                    partman.set_flags(device, index, partition.get('flags'))
+
+                if 'encrypted' in partition:
+                    if partition.get('encrypted'):
+                        partman.set_encrypted(device, index)
+
+                # TODO: subvolumes
+
+    partman.commit()
 
 def run_partman_tui():
     """
@@ -519,11 +556,7 @@ def create_filesystem(disk: str, index: int, filesystem: str, obj: Partition):
     prefix=('p' if 'nvme' in disk or 'md' in disk else '')
     full_path = f'{disk}{prefix}{index}'
 
-    if constants.DRY_RUN:
-        logger.info(f"Creating filesystem {obj.fstype} on {full_path}")
-        return True
-
-    if not os.path.exists(full_path):
+    if not os.path.exists(full_path) and not constants.DRY_RUN:
         logger.error(f"Partition {full_path} does not exist.")
         return False
 
@@ -543,14 +576,24 @@ def create_filesystem(disk: str, index: int, filesystem: str, obj: Partition):
 
     cmd = ""
 
+    opts = []
     match filesystem:
         case 'btrfs':
-            cmd = f"mkfs.btrfs -f {full_path}"
+            if len(obj.label) > 0:
+                opts.append(f'-L {obj.label}')
+            cmd = f"mkfs.btrfs -f {full_path} {' '.join(opts)}"
+
         case 'ext4':
-            cmd = f"mkfs.ext4 {full_path}"
+            if len(obj.label) > 0:
+                opts.append(f'-L {obj.label}')
+            cmd = f"mkfs.ext4 {full_path} {' '.join(opts)}"
+
         case 'vfat' | 'fat32':
+            if len(obj.label) > 0:
+                opts.append(f'-n {obj.label}')
             # Using vfat regardless. fat32 is provided to parted.
-            cmd = f"mkfs.vfat -F 32 {full_path}"
+            cmd = f"mkfs.vfat -F 32 {full_path} {' '.join(opts)}"
+
         case _:
             logger.error(f"Unknown filesystem type: {filesystem}")
             return False
