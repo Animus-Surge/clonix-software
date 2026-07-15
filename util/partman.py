@@ -14,7 +14,7 @@ from loguru import logger
 
 import util
 from util import constants, get_drive_size_raw, get_physical_drives, run_subprocess, gvars, convert
-from util.data import Partition
+from util.data import Partition, BtrfsSubvol
 
 BYTE_MULTIPLIERS = {
         'K': 1024,
@@ -383,6 +383,19 @@ class Partman:
             return False
         return True
 
+    def create_subvol(self, disk: str | int, index: int, name: str, mountpoint: str, opts: str): 
+        target = self.get_disk(disk)
+        if not target:
+            logger.error("Could not find disk.")
+            return False
+
+        try:
+            target.partitions[index-1].subvols.append(BtrfsSubvol(name, mountpoint, opts))
+        except IndexError:
+            logger.error("Partition not found.")
+            return False
+        return True
+
     # Runner
     def commit(self):
         """
@@ -476,12 +489,12 @@ def run_partman(layout: list):
 
     partman = Partman()
 
-    registered_devices = [disk.device for disk in partman.get_disks()]
+    registered_devices = [disk for disk in partman.get_disks()]
 
     for drive in layout:
         device = drive.get('device')
 
-        if device in registered_devices:
+        if device in registered_devices and not drive.get('ignore'):
             index = 1
             for partition in device.get('partitions'):
                 partman.add_partition(device, 
@@ -500,7 +513,9 @@ def run_partman(layout: list):
                     if partition.get('encrypted'):
                         partman.set_encrypted(device, index)
 
-                # TODO: subvolumes
+                if 'subvols' in partition:
+                    for vol in partition.get('subvols'):
+                        partman.create_subvol(device, index, vol.get('name'), vol.get('mountpoint'), vol.get('opts'))
 
     partman.commit()
 
