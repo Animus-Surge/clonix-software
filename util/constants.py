@@ -13,8 +13,8 @@ CLONIX_TITLE = "Clonix"
 CLONIX_API_URL = "localhost:5000"
 
 # System flags
-DRY_RUN = True  # Whether critical operations should be executed or not
-DEVELOP_MODE = True # Handles if dev mode variable checking should take place. Also controls log state
+DRY_RUN = False  # Whether critical operations should be executed or not
+DEV_MODE = True # Handles if dev mode variable checking should take place. Also controls log state
 LOG_STATE = 'vvv'  # Handled by the -v/--verbose options
 
 # Command input expectations (i.e. confirmations)

@@ -44,3 +44,10 @@ class Partition:
 
     subvols: List[BtrfsSubvol] = field(default_factory=list) # Btrfs subvolumes; blank for optional
 
+@dataclass
+class APIDevice:
+    pass
+
+@dataclass
+class APIConfiguration:
+    pass

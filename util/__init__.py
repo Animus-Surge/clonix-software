@@ -49,7 +49,7 @@ def load_key_from_env(): # Loads the master obfuscation key
 def log_error(error: Exception, message: str):
     if type(error) is subprocess.CalledProcessError:
         logger.error(f"{message} ({error.returncode})")
-        for line in error.stderr().strip().split('\n'):
+        for line in error.stderr.strip().split('\n'):
             logger.trace(line)
 
     else:
@@ -158,7 +158,7 @@ def unlock_encrypted_partition(device, psp, volname='dm_crypt-0') -> Tuple[bool,
         return False, ''
 
     vol_index = 0
-    while os.path.exists(volname):
+    while os.path.exists(os.path.join("/dev/mapper", volname)):
         vol_index += 1
         volname = f'dm_crypt-{vol_index}'
 

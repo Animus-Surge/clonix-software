@@ -559,8 +559,8 @@ def create_encrypted_volume(device: str):
     if not os.path.exists(device):
         logger.error(f'{device} does not exist.')
         return False, ''
-
-    psp = util.decrypt_text(gvars.ENC_PASSPHRASE)
+    psp = gvars.ENC_PASSPHRASE # TEMPORARY
+#    psp = util.decrypt_text(gvars.ENC_PASSPHRASE)
 
     cmd = f'cryptsetup luksFormat {device}'
 
