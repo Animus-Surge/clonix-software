@@ -6,6 +6,7 @@ Utility functions
 
 
 import base64
+import json
 import os
 import re
 import shlex
@@ -20,30 +21,32 @@ from loguru import logger
 
 from . import constants, gvars
 
+# MOVEME
+
 # Encryption functions (obfuscates values to hide them from prying eyes)
-# NOTE: These functions should NOT replace actual encryption.
-def encrypt_text(value: str) -> str:
-    v_bytes = value.encode('utf-8')
-    key = gvars.ENC_MASTER_KEY
-    encrypted = bytes(a ^ b for a, b in zip(v_bytes, cycle(key)))
-    return base64.b64encode(encrypted).decode('utf-8')
-
-def decrypt_text(value: str) -> str:
-    v_bytes = base64.b64decode(value.encode('utf-8'))
-    key = gvars.ENC_MASTER_KEY
-    decrypted = bytes(a ^ b for a,b in zip(v_bytes, cycle(key)))
-    return decrypted.decode('utf-8')
-
-def load_key_from_env(): # Loads the master obfuscation key
-    if not load_dotenv():
-        logger.warning("Could not load .env file. Using system env")
-
-    var = os.getenv('ENC_MASTER_KEY')
-    if not var:
-        logger.error("System env does not contain required variable 'ENC_MASTER_KEY'")
-    else:
-        logger.info("Loaded master key from env.")
-        gvars.ENC_MASTER_KEY = var.encode('utf-8')
+## NOTE: These functions should NOT replace actual encryption.
+#def encrypt_text(value: str) -> str:
+#    v_bytes = value.encode('utf-8')
+#    key = gvars.ENC_MASTER_KEY
+#    encrypted = bytes(a ^ b for a, b in zip(v_bytes, cycle(key)))
+#    return base64.b64encode(encrypted).decode('utf-8')
+#
+#def decrypt_text(value: str) -> str:
+#    v_bytes = base64.b64decode(value.encode('utf-8'))
+#    key = gvars.ENC_MASTER_KEY
+#    decrypted = bytes(a ^ b for a,b in zip(v_bytes, cycle(key)))
+#    return decrypted.decode('utf-8')
+#
+#def load_key_from_env(): # Loads the master obfuscation key
+#    if not load_dotenv():
+#        logger.warning("Could not load .env file. Using system env")
+#
+#    var = os.getenv('ENC_MASTER_KEY')
+#    if not var:
+#        logger.error("System env does not contain required variable 'ENC_MASTER_KEY'")
+#    else:
+#        logger.info("Loaded master key from env.")
+#        gvars.ENC_MASTER_KEY = var.encode('utf-8')
 
 # Log functions
 def log_error(error: Exception, message: str):
@@ -71,7 +74,7 @@ def run_subprocess(cmd: list | str, prepend=[], user_input=""):
         logger.info(f"DRY_RUN{f'(input={user_input})'}: {' '.join(final_cmd)}")
         return True
 
-    logger.debug(f"Running: `{' '.join(final_cmd)}`")
+    logger.info(f"Running: `{' '.join(final_cmd)}`")
 
     try:
         output = subprocess.run(final_cmd, check=True, capture_output=True, text=True, input=user_input)
@@ -196,6 +199,19 @@ def unmount_path(path, recursive=False) -> bool:
 
     logger.error("Path {} is not a mountpoint.".format(path))
     return False
+
+
+## BEGIN: file management functions
+def load_file() -> str:
+    pass
+
+def load_file_json() -> dict:
+    pass
+
+def load_system_data():
+
+    pass
+
 
 ## BEGIN: hardware management
 
