@@ -202,15 +202,37 @@ def unmount_path(path, recursive=False) -> bool:
 
 
 ## BEGIN: file management functions
-def load_file() -> str:
-    pass
+def load_file(path: str) -> str:
+    if not os.path.exists(path):
+        logger.error(f"Cannot open file: {path} does not exist.")
+        return ""
+    
+    with open(path, 'r') as f:
+        return f.read()
 
 def load_file_json() -> dict:
-    pass
+    return {}
 
-def load_system_data():
+def load_system_data() -> dict:
+    # Load information from /sys/class/dmi
+    serial_number = ""
+    manufacturer = ""
+    product_name = ""
 
-    pass
+    with open('/sys/class/dmi/id/product_serial', 'r') as f:
+        serial_number = f.read()
+
+    with open('/sys/class/dmi/id/sys_vendor', 'r') as f:
+        manufacturer = f.read()
+
+    with open('/sys/class/dmi/id/product_name', 'r') as f:
+        product_name = f.read()
+    
+    return {
+        "serial_number": serial_number,
+        "manufacturer": manufacturer,
+        "product_name": product_name
+        }
 
 
 ## BEGIN: hardware management
