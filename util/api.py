@@ -17,8 +17,6 @@ def _make_api_request(method, path, data={}):
             pass
         case "POST":
             pass
-        case "DELETE":
-            pass
         case "UPDATE":
             pass
 
@@ -26,28 +24,5 @@ def _make_api_request(method, path, data={}):
             return
     pass
 
-
-# Key-pair exchange
-def api_get_server_pub_key():
-    pass
-
-def api_send_client_pub_key():
-    pass
-
-
-# Encryption keys
-def api_get_client_encryption_key():
-    pass
-
-def api_send_client_master_volume_key():
-    pass
-
-
-# Configuration management
-def api_get_client_deployment_config():
-    pass
-
-
-# Device management
-def api_create_device():
+def retrieve_autoprovision_config(): # Authenticates this cloner instance
     pass

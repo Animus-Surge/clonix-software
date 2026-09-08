@@ -27,7 +27,7 @@
   services.kmscon.extraConfig = ''
     font-engine=unifont
     palette=legacy
-    font-name=Hack Nerd Font
+    font-name=AdwaitaMono Nerd Font
   '';
 
   services.ntp = {

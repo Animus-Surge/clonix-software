@@ -5,11 +5,10 @@ Author: Evan Floyd (Surge)
 """
 
 import argparse
+import datetime
 import os
 import subprocess
 import sys
-
-from datetime import now
 
 from loguru import logger
 import httpx
@@ -95,6 +94,12 @@ def main(arg_dict: dict):
     #       specify that url. It would default to None for portability, but allow
     #       admins to control the behavior of this system.
 
+    # TODO: Additionally, allow a `autodeploy.json` file to be created that would
+    #       read the serial number of the system, and use that to determine how to 
+    #       provision the system, given the api url. This file would contain an image
+    #       name, and determine what to do given the disk layout (which might be able
+    #       to be done directly in the api.
+
     # Subcommand processing
     if arg_dict.get("command"):
         cmd = arg_dict.get("command")
@@ -102,7 +107,7 @@ def main(arg_dict: dict):
         if cmd == "tui":
             logger.remove()
 
-        logger.add(f"logs/clonix-{now()}.log")
+        logger.add(f"logs/clonix-{datetime.datetime.now()}.log")
 
         cmdopts = {}
 
@@ -116,7 +121,7 @@ def main(arg_dict: dict):
 
             # Assemble cmdopts
 
-            if not deploy.start_deployment(source, target, cmdopts):
+            if not deploy.deploy():
                 # I'm choosing not to print anything here, since the actual system will
                 # say something.
                 exit(1)
@@ -128,6 +133,9 @@ def main(arg_dict: dict):
 
         elif cmd == "tui":
             # TODO: implement
+            pass
+
+        elif cmd == "test":
             pass
 
         else:
