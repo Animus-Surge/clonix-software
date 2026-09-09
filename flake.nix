@@ -10,9 +10,14 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
+
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, utils }: 
+  outputs = { self, nixpkgs, utils, nixos-generators }: 
     (utils.lib.eachDefaultSystem (system:
       let 
         pkgs = import nixpkgs { inherit system; };
@@ -63,7 +68,16 @@
         packages = {
           default = clonix-bin;
 
-          clonix-iso = self.nixosConfigurations.cloner.config.system.build.isoImage;
+          clonix-iso = self.nixosConfigurations.clonix-iso.config.system.build.isoImage;
+          clonix-pxe = pkgs.symlinkJoin {
+            name = "clonix-pxe";
+            paths = with self.nixosConfigurations.clonix-pxe.config.system.build; [
+              netbootRamdisk
+              kernel
+              netbootIpxeScript
+            ];
+          };
+          clonix-img = self.clonix-img;
         };
 
         devShells.default = pkgs.mkShell {
@@ -84,7 +98,7 @@
     ))
     // {
       # Following block creates the live ISO
-      nixosConfigurations.cloner = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.clonix-iso = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ({ modulesPath, ... }: {
@@ -102,6 +116,26 @@
             system.nixos.label = "clonix";
             isoImage.volumeID = "CLONIX";
           }
+        ];
+      };
+
+      nixosConfigurations.clonix-pxe = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ({ modulesPath, ... }: {
+            imports = [ "${modulesPath}/installer/netboot/netboot-minimal.nix" ];
+          })
+          ./clonix-iso.nix
+        ];
+      };
+
+      clonix-img = nixos-generators.nixosGenerate {
+        system = "x86_64-linux";
+
+        format = "raw-efi";
+
+        modules = [
+          ./clonix-iso.nix
         ];
       };
     };

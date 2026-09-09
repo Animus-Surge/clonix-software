@@ -19,22 +19,26 @@
     settings.PermitRootLogin = lib.mkForce "prohibit-password";
   };
 
+  # Fonts
+  fonts.packages = [
+    pkgs.nerd-fonts.adwaita-mono
+  ];
+
   # Other services
   services.kmscon.enable = true; # Allow full color and UTF-8 support
-  services.kmscon.fonts = [
-    { name = "Hack Nerd Font"; package = pkgs.nerd-fonts.hack; }
-  ];
-  services.kmscon.extraConfig = ''
-    font-engine=unifont
-    palette=legacy
-    font-name=AdwaitaMono Nerd Font
-  '';
+  services.kmscon.config = {
+    font-engine = "unifont";
+    font-name = "AdwaitaMono Nerd Font";
+    palette = "legacy";
+  };
 
+  # NTP?
   services.ntp = {
     enable = true;
     servers = [ "" ]; # Can be configured somehow else, maybe with the flake? Should be able to be configured by the end user
   };
 
+  # System Packages
   environment.systemPackages = with pkgs; [
     # System requirements
     git

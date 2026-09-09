@@ -1,6 +1,7 @@
-httpx
-loguru
-nuitka
-psutil
-qrcode
 urwid
+psutil
+httpx
+nuitka
+qrcode
+fusepy
+pytest
