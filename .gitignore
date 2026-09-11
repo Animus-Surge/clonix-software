@@ -21,5 +21,13 @@ logs/
 *.lock
 *.env*
 
+*.efi*
+*.img*
+*.iso*
+*.key*
+*.pem*
+*.crt*
+*.der*
+
 # Random files
 notes.md

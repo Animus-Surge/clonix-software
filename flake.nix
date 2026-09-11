@@ -68,25 +68,33 @@
         packages = {
           default = clonix-bin;
 
-          clonix-iso = self.nixosConfigurations.clonix-iso.config.system.build.isoImage;
+          clonix-iso = self.clonix-iso.config.system.build.isoImage;
           clonix-pxe = pkgs.symlinkJoin {
             name = "clonix-pxe";
-            paths = with self.nixosConfigurations.clonix-pxe.config.system.build; [
+            paths = with self.clonix-pxe.config.system.build; [
               netbootRamdisk
               kernel
               netbootIpxeScript
             ];
           };
+          clonix-uki = self.clonix-pxe.config.system.build.uki;
+
           clonix-img = self.clonix-img;
         };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [ pythonEnv ];
 
+          packages = with pkgs; [
+            sbsigntool
+            openssl
+            mokutil ];
+
           shellHook = ''
             echo "Entered clonix-bin development shell."
             ${genRequirements}/bin/gen-requirements
             echo "Available packages: ${nixpkgs.lib.concatStringsSep ", " pythonDeps}"
+            echo "Available tools: sbsign, mokutil, openssl"
             '';
         };
 
@@ -98,7 +106,7 @@
     ))
     // {
       # Following block creates the live ISO
-      nixosConfigurations.clonix-iso = nixpkgs.lib.nixosSystem {
+      clonix-iso = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ({ modulesPath, ... }: {
@@ -119,10 +127,11 @@
         ];
       };
 
-      nixosConfigurations.clonix-pxe = nixpkgs.lib.nixosSystem {
+      clonix-pxe = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ({ modulesPath, ... }: {
+          ({ pkgs, modulesPath, ... }: {
+
             imports = [ "${modulesPath}/installer/netboot/netboot-minimal.nix" ];
           })
           ./clonix-iso.nix
