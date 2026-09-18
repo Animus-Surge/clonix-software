@@ -234,6 +234,19 @@ def load_system_data() -> dict:
         "product_name": product_name
         }
 
+def read_os_version(source: str = "") -> dict:
+    os_version_dict = {}
+    try:
+        with open(f"${source}/etc/os-release", "r") as f:
+            for line in f:
+                parts = line.split("=")
+                os_version_dict[parts[0]] = parts[1].strip('"')
+
+    except OSError as e:
+        log_error(e, "Failed to read `/etc/os-release`")
+        return {}
+
+    return os_version_dict
 
 ## BEGIN: hardware management
 

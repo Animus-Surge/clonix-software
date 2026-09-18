@@ -1,8 +1,7 @@
-# CloNIX - Filesystem based operating system cloning tool
+# CloNIX - Unix-based operating system cloning tool
 
-## Usage
+CloNIX is a NixOS based operating system cloner.
 
-```
-clonix
+## How it works
 
-```
+

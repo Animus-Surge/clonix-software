@@ -17,3 +17,11 @@ Multi-operating system cloning tool based on NixOS
 
 All python requirements are present in the `requirements.txt` file.
 
+
+## Notes
+
+- `systemctl reboot --firmware-setup`
+- `fwupdmgr` for modifying bios variables
+  - `echo "MyNewStrongPassword123" | sudo tee /sys/class/firmware-attributes/dell-wmi-sysman/authentication/bios-admin/new_password` for updating dell passwords
+
+
