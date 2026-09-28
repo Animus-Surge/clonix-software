@@ -17,7 +17,7 @@ from util import constants
 
 # Default configuration
 DEFAULT_CONFIG={
-    "NVIDIA_DRIVER_DEFAULT_VERSION": 580,
+    "NVIDIA_DRIVER_DEFAULT_VERSION": 580, # TODO: have it read lspci -nn output
     "NVIDIA_DRIVER_DO_INSTALL": True,
     "LABVIEW_DRIVERS_DO_INSTALL": False
 }
@@ -141,7 +141,7 @@ def generate_init(mok_pw):
     try:
         subprocess.run(["/bin/systemctl", "--root=/target", "enable", "init.service"], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        log_error(e, f"Failed to enable init.service.")
+        util.log_error(e, f"Failed to enable init.service.")
         return False
 
     logger.success("Created and enabled init service.")

@@ -11,6 +11,7 @@ CLONIX_VERSION = "v2.4"
 CLONIX_TITLE = "Clonix"
 # MUST GET OVERRIDDEN FOR PRODUCTION ENVIRONMENTS
 CLONIX_API_URL = "localhost:5000"
+CLONIX_LOCAL_IMAGE_DIR = "/var/clonix"
 
 # System flags
 DRY_RUN = False  # Whether critical operations should be executed or not

@@ -6,7 +6,15 @@ Base system copy step
 
 # Target should be a block device, i.e. /dev/sda or /dev/nvme0n1
 def copy_via_tar(source: str, target: str):
+    if "file:" in source:
+        pass
+    else:
+        pass
     pass
 
 def copy_via_dd(source: str, target: str):
+    if "file:" in source:
+        pass
+    else:
+        pass
     pass

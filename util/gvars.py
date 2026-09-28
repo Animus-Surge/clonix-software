@@ -8,3 +8,9 @@ Global variables and things to be transferred between different threads
 ENC_MASTER_KEY = b'<placeholder>' # gitguardian will throw a fit with this
 ENC_PASSPHRASE = 'test_passphrase'
 
+
+# Function Outputs
+g_pv_freeze_progress = {
+    "latest": 0,
+    "history": []
+}
