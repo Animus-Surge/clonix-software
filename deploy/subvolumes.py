@@ -26,17 +26,12 @@ DEFAULT_SUBVOL = [
 
 def mk_subvol(layout = DEFAULT_SUBVOL, encrypted = True, swap = True):
 
-    efi_uuid = None
-    boot_uuid = None
+    efi_uuid = ""
+    boot_uuid = ""
 
+    efi_uuid = util.get_part_uuid(mountpoint="/target/boot/efi") or ""
     if encrypted:
-        efi_uuid = util.get_part_uuid(mountpoint="/target/boot/efi")
-        boot_uuid = util.get_part_uuid(mountpoint="/target/boot")
-    else:
-        efi_uuid = util.get_part_uuid(mountpoint="/target/boot/efi")
-
-    if not efi_uuid: efi_uuid = ""
-    if not boot_uuid: boot_uuid = ""
+        boot_uuid = util.get_part_uuid(mountpoint="/target/boot") or ""
 
     cwd = os.getcwd()
     os.chdir("/target")
